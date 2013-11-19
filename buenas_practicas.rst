@@ -1,4 +1,4 @@
-.. |PGSQL| replace:: PostgreSQL
+.. |PGSQL| replace:: PostgreSQL
 .. |PGIS| replace:: PostGIS
 .. |PRAS| replace:: PostGIS Raster
 .. |GDAL| replace:: GDAL/OGR
