@@ -12,11 +12,11 @@
 PostGIS y el escritorio
 **********************************
 En este tema veremos cómo interactúan los clientes GIS de escritorio más extendidos con una base de datos PostGIS. Concretamente, veremos:
-	* `QGIS <>`_
-	* `OpenJUMP <>`_
-	* `gvSIG <>`_ 
-	* `uDig <>`_
-	* `Kosmo <>`_ 
+	* `QGIS <http://qgis.org/es/site/>`_
+	* `OpenJUMP <http://www.openjump.org/>`_
+	* `gvSIG <http://www.gvsig.org/web/>`_ 
+	* `uDig <http://udig.refractions.net/>`_
+	* `Kosmo <http://www.opengis.es/>`_ 
 
 
 QGIS
