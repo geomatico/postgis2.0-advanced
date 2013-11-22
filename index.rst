@@ -11,10 +11,12 @@ Contents:
 .. toctree::
    :maxdepth: 2
    
+   tema0
    tema1_1
    tema1_2
    tema4
    bibliografia
+   referencias
 
 Indices and tables
 ==================
