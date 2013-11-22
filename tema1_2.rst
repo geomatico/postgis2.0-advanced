@@ -34,28 +34,24 @@ Para el uso de la herramienta::
 
 	$ shp2pgsql [<opciones>] <ruta_shapefile> [<esquema>.]<tabla>
 	
-Entre las opciones encontraremos:
-
-	* **-s <srid>**  Asigna el sistema de coordenadas. Por defecto será -1
-	* **(-d|a|c|p)**
-		* **-d**  Elimina la tabla, la recrea y la llena con los datos del shape
-		* **-a**  Llena la tabla con los datos del shape. Debe tener el mismo esquema exactamente
-		* **-c**  Crea una nueva tabla y la llena con los datos. opción por defecto.
-		* **-p**  Modo preparar, solo crea la tabla
-	* **-g <geocolumn>** Especifica el nombre de la columna geometría (usada habitualmente en modo *-a*)
-	* **-D** Usa el formato Dump de postgresql
-	* **-G** Usa tipo geogrfía, requiere datos de longitud y latitud
-	* **-k** Guarda los identificadores en postgresql
-	* **-i** Usa int4 para todos los campos integer del dbf
-	* **-I** Crea un índice spacial en la columna de la geometría
-	* **-S** Genera geometrías simples en vez de geometrías MULTI
-	* **-w** Salida en WKT
-	* **-W <encoding>** Especifica la codificación de los caracteres. (por defecto : "WINDOWS-1252").
-	* **-N <policy>** estrategia de manejo de geometrías NULL (insert*,skip,abort).
-	* **-n**  Solo importa el archivo DBF
-	* **-?**  Muestra la ayuda
-
+Podemos ver una explicación detallada de las opciones disponibles en la `documentación en línea <http://postgis.net/docs/manual-2.0/using_postgis_dbmanagement.html#shp2pgsql_usage>`_
+	
 Una vez generado el fichero SQL, puede ser cargado en |PGSQL| mediante la herramienta ``psql`` de línea de comandos o a través de `pgAdmin III <http://www.pgadmin.org/>`_, una herramienta gráfica de administración y desarrollo para Windows, Mac y |LX| 
+
+A continuación, veremos un ejemplo de las opciones más típicas usadas a la hora de cargar un fichero |SHP| con ``shp2pgsql``::
+
+    shp2pgsql -s 4258:25830 -I -W LATIN1 mi_fichero.shp > mifichero.sql
+    
+    
+A destacar algunos detalles:
+    * Mediante el uso de la sintaxis -s <srid_origen>:<srid_destino>, **forzamos una proyección del SRID origen al destino**. De esta forma, los datos se almacenarán en PostGIS con el srid de destino. Si solo especificamos un srid, **se asigna el mismo a los datos de destino, sin realizar la reproyección**:
+    * Con la opción `-W LATIN1` especificamos que nuestros datos de origen (fichero dbf) utilizan la codificación LATIN1. Cuando usamos esta opción, todos los atributos del fichero dbf son convertidos de la codificación especificada a UTF8. El SQL generado contendrá el comando ``SET CLIENT_ENCODING to UTF8``, de manera que el servidor será capaz de convertir desde UTF8 al sistema de codificación que esté usando internamente. 
+    * Es recomendable crear un índice espacial sobre la columna de tipo geométrica, si vamos a realizar consultas sobre nuestra tabla que involucren a dicha columna. Lo indicamos con la opción ``-I``
+    
+    ..sealso:: Una `breve introducción a los sistema de codificación y los juegos de caracteres en Python<http://es.scribd.com/doc/159584080/Python-y-los-encodings>`_
+    
+    ..sealso:: `Lo mínimo que cualquier desarrollador debe saber sobre sistemas de codificación y juegos de caracteres <http://www.joelonsoftware.com/articles/Unicode.html>`_, por Joel Spolsky
+
 
 
 Carga de datos raster
