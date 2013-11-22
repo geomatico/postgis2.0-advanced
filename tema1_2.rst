@@ -38,7 +38,7 @@ Podemos ver una explicación detallada de las opciones disponibles en la `docume
 	
 Una vez generado el fichero SQL, puede ser cargado en |PGSQL| mediante la herramienta ``psql`` de línea de comandos o a través de `pgAdmin III <http://www.pgadmin.org/>`_, una herramienta gráfica de administración y desarrollo para Windows, Mac y |LX| 
 
-A continuación, veremos un ejemplo de las opciones más típicas usadas a la hora de cargar un fichero |SHP| con ``shp2pgsql``::
+A continuación, veremos un ejemplo de las opciones más típicas usadas a la hora de cargar un fichero |SHP| con ``shp2pgsql``::
 
     shp2pgsql -s 4258:25830 -I -W LATIN1 mi_fichero.shp > mifichero.sql
     
@@ -48,9 +48,9 @@ A destacar algunos detalles:
     * Con la opción `-W LATIN1` especificamos que nuestros datos de origen (fichero dbf) utilizan la codificación LATIN1. Cuando usamos esta opción, todos los atributos del fichero dbf son convertidos de la codificación especificada a UTF8. El SQL generado contendrá el comando ``SET CLIENT_ENCODING to UTF8``, de manera que el servidor será capaz de convertir desde UTF8 al sistema de codificación que esté usando internamente. 
     * Es recomendable crear un índice espacial sobre la columna de tipo geométrica, si vamos a realizar consultas sobre nuestra tabla que involucren a dicha columna. Lo indicamos con la opción ``-I``
     
-    ..sealso:: Una `breve introducción a los sistema de codificación y los juegos de caracteres en Python<http://es.scribd.com/doc/159584080/Python-y-los-encodings>`_
+.. seealso:: Una `breve introducción a los sistema de codificación y los juegos de caracteres en Python <http://es.scribd.com/doc/159584080/Python-y-los-encodings>`_
     
-    ..sealso:: `Lo mínimo que cualquier desarrollador debe saber sobre sistemas de codificación y juegos de caracteres <http://www.joelonsoftware.com/articles/Unicode.html>`_, por Joel Spolsky
+.. seealso:: `Lo mínimo que cualquier desarrollador debe saber sobre sistemas de codificación y juegos de caracteres <http://www.joelonsoftware.com/articles/Unicode.html>`_, por Joel Spolsky
 
 
 
@@ -168,7 +168,7 @@ Al igual que ``ogr2ogr`` permite cargar datos vectoriales de cualquier formato a
 Exportación de datos raster
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Actualmente, la única manera *sencilla* de exportar datos desde |PRAS| a cualquier formato gráfico aceptado por |GDAL| es a través de las herramientas ``gdal_translate`` y ``gdalwarp``. 
+Actualmente, la única manera *sencilla* de exportar datos desde |PRAS|  a cualquier formato gráfico aceptado por |GDAL| es a través de las herramientas ``gdal_translate`` y ``gdalwarp``. 
 
 La primera herramienta, ``gdal_translate``, funciona de manera análoga a ``ogr2ogr``, permitiendo pasar de cualquier formato gráfico a |PRAS|, especificando como cadena de destino una conexión a la base de datos. La herramienta ``gdalwarp`` permite, adicionalmente, cambiar la proyección de los datos.
 
