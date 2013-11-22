@@ -3,17 +3,18 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Bienvenido a la documentación del curso avanzado de bases de datos espaciales con PostGIS 2.0
-====================================================================================
+Curso avanzado de bases de datos espaciales con PostGIS 2.0
+===========================================================
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
    
-	tema1_1
-	tema1_2
-	tema1_4
+   tema1_1
+   tema1_2
+   tema4
+   bibliografia
 
 Indices and tables
 ==================
