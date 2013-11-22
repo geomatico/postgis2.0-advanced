@@ -14,7 +14,7 @@ Importación y exportación de datos
 En este tema nos introduciremos en el uso de herramientas de importación/exportación de datos hasta/desde |PGIS|. Veremos 4 tipos de herramientas:
 	* Herramientas |PGSQL| y |PGIS|: ``shp2pgsql``, ``pgsql2shp``, |PGA|, ``psql``
 	* Herramientas |GDAL|: ``ogr2ogr``, ``gdal_translate``, ``gdalwarp`` 
-	* Plugin de QGIS
+	* Plugin SPIT de QGIS
 	* Cargador de datos |OSM|: ``osm2pgsql``
 
 Finalmente, veremos una serie de ejercicios prácticos, que servirán para fijar los conocimientos adquiridos.
@@ -115,7 +115,17 @@ las opciones más utilizadas serán:
 	* **-g <geometry_column>** Columna de geometría que será exportada
 
 
+A continuación, veremos un ejemplo de exportación de datos vectoriales con ``pgsql2shp``::
+
+	$ pgsql2shp -f mifichero.shp <mi_base_datos> <mi_tabla>
+
+Con la orden anterior, crearíamos un fichero de nombre ``mifichero.shp`` a partir de la tabla ``<mi_tabla>`` existente en la base de datos ``<mi_base_de_datos>``
+
+
+
 .. note:: No existe actualmente una herramienta equivalente a ``pgsql2shp``, para exportar datos raster desde la base de datos |PGSQL| (su nombre hipotético sería ``pgsql2raster``). Para exportar datos raster, se usa la librería |GDAL|, como veremos en el siguiente apartado
+
+.. seealso:: Hay más maneras de exportar datos raster desde |PGSQL| sin necesidad de usar GDAL. En la `documentación online de PostGIS Raster <http://postgis.net/docs/manual-2.0/using_raster.xml.html#RT_Raster_Applications>`_ se mencionan algunos. 
 
 
 
@@ -161,6 +171,17 @@ Al igual que ``shp2pgsql``, **también es posible reproyectar datos con** ``ogr2
 
 .. warning:: Si bien ``shp2pgsql`` acepta únicamente el identificador numérico del SRID, las herramientas de |GDAL| requieren la sintaxis ``epsg:<srid>``. 
 
+
+Un ejemplo de carga de datos vectoriales en |PGIS| usando ``ogr2ogr``::
+	
+	$ ogr2ogr -f PostgreSQL -t_srs epsg:25830 pg:dbname=<mi_base_datos> mi_fichero.kml
+
+En el ejemplo anterior, cabe destacar:
+	* El flag ``-t_srs`` que, como ya se ha mencionado, fuerza la reproyección de los datos de entrada al srid proporcionado.
+	* La construcción de una cadena de conexión con |PGSQL| requiere, como mínimo, que se especifique el nombre de la base de datos, siguiendo la sintaxis ``PG:dbname=<base_datos>``
+	* Como ya se ha visto, ``ogr2ogr`` es capaz de cargar datos en diversos formatos vectoriales, no únicamente |SHP|. En el ejemplo, cargamos un fichero `KML <http://en.wikipedia.org/wiki/Keyhole_Markup_Language>`_ 
+
+
 .. note:: Actualmente, no es posible cargar datos en PostGIS con la herramienta |GDAL|. De hecho **la única manera de cargar datos raster en PostGIS Raster es mediante el cargador oficial raster2pgsql**
 
 
@@ -170,13 +191,56 @@ Exportación de datos vectoriales
 
 Al igual que ``ogr2ogr`` permite cargar datos vectoriales de cualquier formato aceptado en |PGSQL|, es posible el paso opuesto: exportar datos desde |PGSQL| a cualquier formato vectorial aceptado. Únicamente tenemos que especificar como fichero de origen una cadena de conexión de |PGSQL|, y como destino, el fichero vectorial deseado. El formato se especifica con el flag *-f*.
 
+Un ejemplo de exportación de una tabla de PostgreSQL a formato `TAB de MapInfo <http://www.gdal.org/ogr/drv_mitab.html>`_::
+
+	$ ogr2ogr -f "Mapinfo File" mi_tabla.tab PG:"dbname<mi_base_datos>" mi_tabla
+
+La orden anterior vuelca la tabla <mi_tabla> a disco en formato TAB de Mapinfo. No realiza ningún cambio de proyección, de manera que el fichero .tab tendrá la misma proyección que la tabla original  
+
+
+.. note:: Las comillas para el nombre del formato de salida o la cadena de conexión son opcionales, salvo que haya que lidiar con espacios en blanco.
+
+.. seealso:: En la `página de documentación del driver de PostgreSQL/PostGIS <http://www.gdal.org/ogr/drv_pg.html>`_ hay más detalles acerca de cómo interactúa OGR con |PGIS|
+
 
 Exportación de datos raster
 ---------------------------
 
 Actualmente, la única manera *sencilla* de exportar datos desde |PRAS|  a cualquier formato gráfico aceptado por |GDAL| es a través de las herramientas ``gdal_translate`` y ``gdalwarp``. 
 
-La primera herramienta, ``gdal_translate``, funciona de manera análoga a ``ogr2ogr``, permitiendo pasar de cualquier formato gráfico a |PRAS|, especificando como cadena de destino una conexión a la base de datos. La herramienta ``gdalwarp`` permite, adicionalmente, cambiar la proyección de los datos.
+La primera herramienta, ``gdal_translate``, funciona de manera análoga a ``ogr2ogr``, permitiendo pasar del formato |PRAS| a cualquier formato gráfico, especificando como cadena de origen una conexión a la base de datos. La herramienta ``gdalwarp`` permite, adicionalmente, cambiar la proyección de los datos.
+
+Aunque el formato de la cadena de conexión con |PRAS| es muy parecido al formato de la cadena de conexión con |PGIS| (ver `Exportación de datos vectoriales`), hay algunas diferencias importantes. Concretamente:
+	* En la cadena de conexión con |PRAS| es necesario especificar la tabla sobre las que operar mediante el parámetro ``table=<nombre_tabla>``, mientras que la cadena de conexión de |PGIS| no incluye esta información, siendo un parámetro separado.
+	* La cadena de conexión de |PGIS| incluye el parámetro ``mode=<modo>``, que puede tomar los valores 1 (considera cada fila de la tabla un raster separado) y 2 (considera toda la tabla como una cobertura raster completa). Por defecto toma el valor 1, así que si queremos leer nuestra tabla como un solo raster, hemos de especificar explícitamente ``mode=2`` 
+	* Es posible especificar un grupo de filas de la tabla que queremos exportar, de manera que lo que exportamos es una porción del raster, no el raster completo. Para ello, además del parámetro ``mode=2``, podemos añadir un nuevo parámetro a la cadena, con la forma ``where=<sql_where>``, donde ``<sql_where>`` representa cualquier expresión aceptada por |PSQL| como clausula *where* de una consulta.
+
+Veamos unos ejemplos, para apreciar más claramente estas diferencias
+
+La siguiente instrucción vuelca una tabla de |PRAS| a un fichero en formato PNG en disco::
+
+	$ gdal_translate -of PNG PG:"dbname=<mi_base_datos> mode=2" mi_fichero.png
+
+Esta instrucción vuelca  una tabla de |PRAS| a un fichero en formato TIFF en disco (si no especificamos formato, es el formato por defecto). Además, reproyecta los datos originales a la `proyección EPSG:23030 <http://spatialreference.org/ref/epsg/23030/>`_::
+
+	$ gdalwarp -t_srs epsg:23030 PG:"dbname=<mi_base_de_datos> mode=2" mi_fichero.tif
+
+Esta instrucción vuelca todas las filas de una tabla con el campo ``rid`` mayor que 165 a formato JPEG::
+
+	$ gdal_translate -of JPEG PG:"dbname=<mi_base_de_datos> table=<mi_tabla> mode=2 where='rid > 165'" mi_fichero.jpg
+
+.. warning:: Es necesario incluir comillas para contener la clausula ``where``
+
+Por último, esta instrucción nos informa de todos los subdatasets que contiene el dataset representado por nuestra tabla, que es una consecuencia directa de usar ``mode=1`` cuando nos referimos a una tabla |PRAS| (recordemos que, si no especificamos parámetro ``mode``, éste es el modo de funcionamiento por defecto)::
+
+	$ gdalinfo PG:"dbname=<mi_base_de_datos> table=<mi_tabla>"
+
+
+Algunos formatos gráficos pueden actuar como contenedores, conteniendo más de una cobertura raster (*dataset*, en terminología de |GDAL|). En esos casos, es posible acceder por separado a cada una de las coberturas contenidas en el contenedor. |PRAS| es uno de estos formatos. Por ello, salvo que se especifique lo contrario mediante el parámetro ``mode=2``, una tabla de |PRAS| es un contenedor de varias coberturas raster. Cada fila de la tabla es una de estas coberturas.
+
+
+.. seealso:: En la `documentación sobre el modelo de datos de GDAL <http://www.gdal.org/gdal_datamodel.html>`_ se habla más en profundidad de los formatos que aceptan subdatasets.
+
 
 Para más información, se pueden consultar la `página de gdal_translate <http://www.gdal.org/gdal_translate.html>`_  y la de `gdalwarp <http://www.gdal.org/gdalwarp.html>`_. Para saber cómo especificar una cadena de conexión con |PRAS|, consultar la `página específica del driver <http://trac.osgeo.org/gdal/wiki/frmts_wtkraster.html>`_
 
