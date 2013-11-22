@@ -32,7 +32,25 @@ Un mal diseño de una base de datos espacial puede llevar a tener una herramient
 
 Es por eso que es conveniente seguir una serie de buenas prácticas a la hora de diseñar una base de datos espacial con |PGIS|. En este curso, vamos a seguir los consejos del libro `PostGIS in Action <http://www.manning.com/obe2/>`_, que consideramos como una de las *Biblias* acerca de |PGIS|.
 
- 
+
+Conceptos de diseño
+====================
+
+En el mencionado libro *PostGIS in Action* se plantean tres conceptos de diseño que consideramos especialmente interesantes a la hora de diseñar columnas geográficas en una base de datos espacial. Estos tres conceptos son **heterogeneidad**, **homogeneidad** y **herencia**. Vamos a verlos más detalladamente por separado
+
+Heterogeneidad
+--------------
+
+Esta aproximación al diseño de tablas espaciales implica relajarse en cuanto al tipo de dato que se puede almacenar en una columna geométrica. O de otra forma: permitir que cualquier tipo de geometría sea almacenada en una columna de tipo geométrico de nuestra tabla: puntos, líneas, polígonos, etc. 
+
+El no restringir el tipo de dato geométrico no significa que no tengamos ningún tipo de restricción a la hora de diseñar nuestras tabla. Por ejemplo, es recomendable aplicar una restricción para que todas las columnas de una misma tabla compartan SRID y dimensión de las coordenadas (2D, 3D). Una gran parte de funciones de |PGIS| requieren que estos parámetros sean los mismos en todas las geometrías de entrada.
+
+
+Ventajas de la heterogeneidad
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* Es más sencillo. Una misma tabla puede contener puntos, líneas y polígonos. Si queremos hacer una consulta que pueda devolvernos potencialmente más de un tipo de geometría, podemos buscar en una sola tabla.
+
+
 
 ..todo:: Terminar la introducción.
 
