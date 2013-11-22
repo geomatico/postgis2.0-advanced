@@ -9,22 +9,23 @@
 .. |LX| replace:: GNU/Linux
 
 
-**********************************
 Importación y exportación de datos
 **********************************
 En este tema nos introduciremos en el uso de herramientas de importación/exportación de datos hasta/desde |PGIS|. Veremos 4 tipos de herramientas:
 	* Herramientas |PGSQL| y |PGIS|: ``shp2pgsql``, ``pgsql2shp``, |PGA|, ``psql``
 	* Herramientas |GDAL|: ``ogr2ogr``, ``gdal_translate``, ``gdalwarp`` 
-	* Plugin SPIT de QGIS
+	* Plugin de QGIS
 	* Cargador de datos |OSM|: ``osm2pgsql``
 
 Finalmente, veremos una serie de ejercicios prácticos, que servirán para fijar los conocimientos adquiridos.
 
 Herramientas |PGSQL| y |PGIS|
-==========================================
+=============================
 
-Carga de datos vectoriales
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+|PGSQL| y |PGIS| propocionan herramientas para importación y exportación de datos vectoriales y raster.
+
+Importación de datos vectoriales
+--------------------------------
 
 El cargador ``shp2pgsql`` convierte archivos |SHP| en SQL preparado para la inserción en la base de datos. Se utiliza desde la linea de comandos, aunque existe una versión con interfaz gráfica para el sistema operativo Windows. Se puede acceder a la ayuda de la herramienta mediante::
 
@@ -33,14 +34,16 @@ El cargador ``shp2pgsql`` convierte archivos |SHP| en SQL preparado para la inse
 Para el uso de la herramienta::
 
 	$ shp2pgsql [<opciones>] <ruta_shapefile> [<esquema>.]<tabla>
+
+.. warning:: El cargador ``shp2pgsql`` solo acepta datos de entrada en formato |SHP|
 	
-Podemos ver una explicación detallada de las opciones disponibles en la `documentación en línea <http://postgis.net/docs/manual-2.0/using_postgis_dbmanagement.html#shp2pgsql_usage>`_
+Podemos ver una explicación detallada de las opciones disponibles en la `documentación en línea del cargador vectorial <http://postgis.net/docs/manual-2.0/using_postgis_dbmanagement.html#shp2pgsql_usage>`_
 	
 Una vez generado el fichero SQL, puede ser cargado en |PGSQL| mediante la herramienta ``psql`` de línea de comandos o a través de `pgAdmin III <http://www.pgadmin.org/>`_, una herramienta gráfica de administración y desarrollo para Windows, Mac y |LX| 
 
-A continuación, veremos un ejemplo de las opciones más típicas usadas a la hora de cargar un fichero |SHP| con ``shp2pgsql``::
+A continuación, veremos un ejemplo de las opciones más típicas usadas a la hora de generar un fichero SQL a partir de un fichero |SHP| con ``shp2pgsql``::
 
-    shp2pgsql -s 4258:25830 -I -W LATIN1 mi_fichero.shp > mifichero.sql
+    $ shp2pgsql -s 4258:25830 -I -W LATIN1 mi_fichero.shp > mifichero.sql
     
     
 A destacar algunos detalles:
@@ -52,12 +55,22 @@ A destacar algunos detalles:
     
 .. seealso:: `Lo mínimo que cualquier desarrollador debe saber sobre sistemas de codificación y juegos de caracteres <http://www.joelonsoftware.com/articles/Unicode.html>`_, por Joel Spolsky
 
+Una vez tenemos nuestro fichero SQL, podemos insertarlo en la base de datos con esta instrucción::
+
+	psql -d <base_de_datos> -f mifichero.sql
+
+.. note:: A partir de ahora, asumimos que el lector ha configurado el acceso a la base de datos como se especifica en el capítulo de introducción. De esta forma, evita tenerque estar proporcionando constantemente datos como usuario, contraseña o dirección donde escucha las conexiones |PGSQL|
+
+De esta forma ya tenemos una nueva tabla en nuestra base de datos.
 
 
-Carga de datos raster
-^^^^^^^^^^^^^^^^^^^^^
 
-Paralelamente al cargador oficial de |PGIS| para datos vectoriales, la versión 2.0 de la librería incluye también un cargador para datos ráster. Se trata de ``raster2pgsql``. KLa ayuda de la herramienta está disponible mediante::
+Importación de datos raster
+---------------------------
+
+Paralelamente al cargador oficial de |PGIS| para datos vectoriales, la versión 2.0 de la librería incluye también un cargador para datos ráster. Se trata de ``raster2pgsql``. Al igual que con los datos vectoriales, esta herramienta transforma datos raster en sentencias SQL, listas para ser insertadas en |PGIS|.
+
+Podemos consultar la ayuda de la herramienta mediante::
 	
 	$ raster2pgsql -?
 
@@ -65,37 +78,27 @@ Y su uso básico es::
 
 	$ raster2pgsql [<opciones>] <ruta_raster> [<esquema>.]<tabla>
 
-Entre las opciones encontraremos:
+Podemos ver una explicación detallada de las opciones disponibles en la `documentación en línea del cargador raster <http://postgis.net/docs/manual-2.0/using_raster.xml.html#RT_Raster_Loader>`_
+	
+Una vez generado el fichero SQL, puede ser cargado en |PGSQL| mediante la herramienta ``psql`` de línea de comandos o a través de `pgAdmin III <http://www.pgadmin.org/>`_.
 
-	* **(-d|a|c|p)**
-		* **-d**  Elimina la tabla, la recrea y la llena con los datos del raster
-		* **-a**  Llena la tabla con los datos del raster. Debe tener el mismo esquema exactamente
-		* **-c**  Crea una nueva tabla y la llena con los datos. opción por defecto.
-		* **-p**  Modo preparar, solo crea la tabla
-	* **Opciones de procesado raster: aplicación de restricciones**
-		* **-C**	Aplica restricciones necesarias al raster (srid, tamaño de pixel, etc) para asegurarse de que se registra correctamente en ``raster_columns``. 
-		* **-x**	Desactiva la restricción de extensión máxima. Solo se aplica si también se especifica -C
-		* **-r**	Establece el parámetro *regular_blocking* a *True*.
-	* **Opciones de procesado raster: parámetros opcionales de manipulación de datos de entrada**
-		* **-s <SRID>**	Asigna el sistema de coordenadas. Por defecto será -1
-		* **-b <BAND>** Índice de banda a extraer (empezando por 1). Si se quieren varias, se pueden separar por comas. Por defecto, se extraen todas las bandas.
-		* **-t <TILE_WIDTH>X<TILE_HEIGHT>** Indica que se tesele el raster usando este tamaño de tesela. Cada tesela será una fila de la tabla
-		* **-R, --register** Únicamente almacena los metadatos del raster en |PRAS|. El raster en si queda registrado como fichero en disco.
-		* **-l <OVERVIEW_FACTOR>** Construye pirámides para el raster de entrada (versiones del mismo a menor escala). Esto consiste en una tabla con el mismo nombre que la original pero precedida por ``o_<OVERVIEW_FACTOR>_<TABLE>``, donde <OVERVIEW_FACTOR> es el factor de escala y <TABLE> el nombre de la tabla original. Se pueden especificar varios factores de escala, separados por comas. El comportamiento de esta opción es similar al de la instrucción ``gdaladdo`` de GDAL.
-		* **-N <NODATA>** Valor de NODATA para las bandas que no tengan ya especificado un valor de NODATA.
-	* **Parámetros opcionales para manipular objetos en la base de datos**
-		* **-q** Escapa los identificadores de |PGSQL|
-		* **-f <COLUMN>** Especifica un nombre para la columna de tipo raster. Por defecto es ``rast``
-		* **-I** Crea un índice de tipo GiST sobre la columna de tipo raster (o más bien sobre su ``st_convexhull``)
-		* **-M** Ejecuta VACUUM ANALYZE sobre la tabla creada
-		* **-T <TABLESPACE>** Especifica el espacio donde se creará la tabla. Los índices usarán el espacio por defecto, a menos que se especifique la siguiente opción.
-		* **-X <TABLESPACE>** Espacio donde crear los índices.
-		* **-Y** Usa sentencias ``COPY`` en vez de ``INSERT``
-	* **-e** Ejecuta cada sentencia de manera individual, en lugar de dentro de una transacción
+.. note:: El cargador ``raster2pgsql`` delega en la librería |GDAL| para realizar la lectura y transformación de datos raster en sentencias SQL. 
+
+A continuación, veremos un ejemplo de las opciones más típicas usadas a la hora de generar un fichero SQL a partir de un fichero |SHP| con ``raster2pgsql``::
+
+	$ raster2pgsql -I -C -F -t 36x36 -M -s 4326 fichero_raster.tif > fichero_raster.sql
+
+Detalles a destacar:
+	* El flag *-C* fuerza a aplicar una serie de restricciones sobre los datos raster a cargar, para así asegurarnos de que es correctamente registrada en la vista `raster_columns`. Veremos este concepto en más profundidad en el tema de `PostGIS Raster`.
+	* Al igual que con `shp2pgsql`, el flag `-I` impone la creación de un índice sobre la columna de tipo raster.
+	* El flag `-F` añade a la tabla raster un campo con el nombre del fichero original. Esto es útil en el caso de que queramos cargar varios ficheros raster en una misma tabla y queramos identificar qué datos vienen de qué fichero. Es importante tener en cuenta que, caso de cargar varios ficheros raster en la misma tabla, **todos han de tener el mismo SRID**
+	* El flag `-t <ancho>x<alto>` especifica un tamaño de tesela para nuestro raster. Cada tesela generada será una columna de un registro de la tabla. Veremos más en detalle el concepto de *tesela* en el tema de |PRAS|
+	* Al contrario que sucedía con `shp2pgsql`, **no es posible especificar una proyección de origen y una de destino con el flag** `-s`. Los datos no serán reproyectados en el momento de la carga. No obstante, es posible reproyectar los datos una vez cargados, mediante la `función ST_Transform <http://postgis.net/docs/manual-2.0/RT_ST_Transform.html>`_. Lo veremos con más detalle en el tema de |PRAS|
+
 
 
 Exportación de datos vectoriales
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------
 
 Para este proceso utilizaremos la herramienta ``pgsql2shp``. Con ella podremos convertir los datos de nuestra base de datos en archivos |SHP|. Igual que para el caso anterior, la herramienta se utilizará desde la linea de comandos::
 
@@ -112,18 +115,19 @@ las opciones más utilizadas serán:
 	* **-g <geometry_column>** Columna de geometría que será exportada
 
 
-.. warning:: No existe actualmente una herramienta equivalente a ``pgsql2shp``, para exportar datos raster desde la base de datos |PGSQL| (su nombre hipotético sería ``pgsql2raster``). Para exportar datos raster, se usa la librería |GDAL|, como veremos en el siguiente apartado
+.. note:: No existe actualmente una herramienta equivalente a ``pgsql2shp``, para exportar datos raster desde la base de datos |PGSQL| (su nombre hipotético sería ``pgsql2raster``). Para exportar datos raster, se usa la librería |GDAL|, como veremos en el siguiente apartado
 
 
 
 Herramientas |GDAL|
-==========================================
+===================
 
 |GDAL| es una librería de lectura y escritura de formatos geoespaciales, tanto *raster* con GDAL como *vectorial* con OGR. Se trata de una librería de software libre ampliamente utilizada.
 
 
-Carga de datos vectoriales
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Importación de datos vectoriales
+--------------------------------
+
 OGR es capaz de convertir a |PGSQL| todos los formatos que maneja, y será capaz de exportar desde |PGSQL| todos aquellos en los que tiene permitida la escritura. Ejecutando::
 
 	$ ogr2ogr --formats
@@ -143,7 +147,7 @@ Otras opciones en referencia al formato de destino:
 	* **-a_srs <srid>** asigna el SRID especificado a la capa de salida
 	* **-t_srs <srid>** Reproyecta la capa de salida según el SRID especificado
 
-En `la página específica del driver de PostgreSQL/PostGIS para GDAL <http://www.gdal.org/ogr/drv_pg.html>`_  se explica cómo especificar una cadena de conexión completa, de manera que accedamos a una tabla concreta de nuestra base de datos.
+En `la página específica del driver de PostgreSQL/PostGIS para GDAL <http://www.gdal.org/ogr/drv_pg.html>`_  se explica cómo especificar una cadena de conexión completa, de manera que accedamos a una tabla concreta de nuestra base de datos. Hay que tener en cuenta que, si se configuró el acceso a la base de datos como se especifica en el apartado de introducción, solo será necesario especificar el nombre de la base de datos como parámetro de la cadena de conexión
 
 Es importante destacar que, mientras los cargadores de |PGIS| generan un archivo SQL que debe ser posteriormente insertado en la base de datos, **ogr2ogr carga directamente los ficheros de origen en una tabla de PostgreSQL**, de manera que no es necesario realizar ningún paso posterior.
 
@@ -151,28 +155,32 @@ Adicionalmente, mientras que los cargadores de |PGIS| trabajan únicamente con e
 
 	$ ogr2ogr --formats
 
-Para ver todos los formatos soportados por |GDAL|. Lo veremos más adelante, cuando carguemos en |PGIS| un fichero `CSV <http://en.wikipedia.org/wiki/Comma-separated_values>`_ y un fichero `KML <http://en.wikipedia.org/wiki/Keyhole_Markup_Language>`_.
+Para ver todos los formatos soportados por |GDAL|.
 
-.. warning:: Actualmente, no es posible cargar datos en PostGIS con la herramienta |GDAL|. De hecho **la única manera de cargar datos raster en PostGIS Raster es mediante el cargador oficial raster2pgsql**
+Al igual que ``shp2pgsql``, **también es posible reproyectar datos con** ``ogr2ogr``. Se consigue mediante el parámetro ``-t_srs <srid_destino>``.
+
+.. warning:: Si bien ``shp2pgsql`` acepta únicamente el identificador numérico del SRID, las herramientas de |GDAL| requieren la sintaxis ``epsg:<srid>``. 
+
+.. note:: Actualmente, no es posible cargar datos en PostGIS con la herramienta |GDAL|. De hecho **la única manera de cargar datos raster en PostGIS Raster es mediante el cargador oficial raster2pgsql**
 
 
 
 Exportación de datos vectoriales
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------
 
-Al igual que ``ogr2ogr`` permite cargar datos vectoriales de cualquier formato aceptado en |PGSQL|, es posible el paso opuesto: exportar datos desde |PGSQL| a cualquier formato vectorial aceptado.
-
-Únicamente tenemos que especificar como fichero de origen una cadena de conexión de |PGSQL|, y como destino, el fichero vectorial deseado. El formato se especifica con el flag *-f*.
+Al igual que ``ogr2ogr`` permite cargar datos vectoriales de cualquier formato aceptado en |PGSQL|, es posible el paso opuesto: exportar datos desde |PGSQL| a cualquier formato vectorial aceptado. Únicamente tenemos que especificar como fichero de origen una cadena de conexión de |PGSQL|, y como destino, el fichero vectorial deseado. El formato se especifica con el flag *-f*.
 
 
 Exportación de datos raster
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------
 
 Actualmente, la única manera *sencilla* de exportar datos desde |PRAS|  a cualquier formato gráfico aceptado por |GDAL| es a través de las herramientas ``gdal_translate`` y ``gdalwarp``. 
 
 La primera herramienta, ``gdal_translate``, funciona de manera análoga a ``ogr2ogr``, permitiendo pasar de cualquier formato gráfico a |PRAS|, especificando como cadena de destino una conexión a la base de datos. La herramienta ``gdalwarp`` permite, adicionalmente, cambiar la proyección de los datos.
 
 Para más información, se pueden consultar la `página de gdal_translate <http://www.gdal.org/gdal_translate.html>`_  y la de `gdalwarp <http://www.gdal.org/gdalwarp.html>`_. Para saber cómo especificar una cadena de conexión con |PRAS|, consultar la `página específica del driver <http://trac.osgeo.org/gdal/wiki/frmts_wtkraster.html>`_
+
+.. warning:: Hay una pequeña inconsistencia en cuanto al orden en el que se pasan los parámetros a las herramientas de la parte raster de |GDAL| y la parte vectorial. Mientras que ``ogr2ogr`` requiere primero el fichero de destino y después el de origen, ``gdal_translate`` y ``gdalwarp`` lo hacen al contrario.
 
 
 Plugin SPIT de QGIS
@@ -202,6 +210,9 @@ Con esto ya tendremos disponible el plugin SPIT, listo para cargar datos
 		:scale: 50%
 
 
+.. warning:: Al igual que ``shp2pgsql``, SPIT solo es capaz de importar datos de tipo |SHP|
+
+
 
 Cargador de datos |OSM|
 =========================
@@ -225,7 +236,7 @@ a diferencia de las geometrías características como:
 una característica particular es la ausencia de polígonos dentro del modelo, estos se realizan mediante la asignación de una relación a una linea cerrada. Esta particularidad no impide que los datos de OSM puedan ser adaptados al modelo de geometrías normal mediante cargadores de datos OSM. A continuación se presentan dos de los más utilizados
 
 osm2pgsql
-^^^^^^^^^
+---------
 Mediante el uso de este programa podremos incorporar en nuestra base de datos los datos obtenidos desde OSM. Una vez que hemos realizado la importación, aparecerán en nuestra base de datos las tablas que serán el resultado de esta importación:
 
 	* *planet_osm_point*
