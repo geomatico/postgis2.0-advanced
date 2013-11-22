@@ -16,6 +16,7 @@ En este tema nos introduciremos en el uso de herramientas de importación/export
 	* Herramientas |GDAL|: ``ogr2ogr``, ``gdal_translate``, ``gdalwarp`` 
 	* Plugin SPIT de QGIS
 	* Cargador de datos |OSM|: ``osm2pgsql``
+	* Cargar datos no espaciales en |PGIS| (y convertirlos en datos espaciales)
 
 Finalmente, veremos una serie de ejercicios prácticos, que servirán para fijar los conocimientos adquiridos.
 
@@ -357,6 +358,49 @@ El siguiente comando cargaría *mifichero.osm* en |PGIS|. Las tablas generadas, 
 	$ osm2pgsql -d <mi_base_datos> --hstore mifichero.osm
 
 
+Cargar datos no espaciales en |PGIS|
+====================================
+
+En ocasiones, queremos trabajar con datos de naturaleza no espacial, agregándoles nosotros esa componente espacial que les falta. Un ejemplo típico son datos tabulados en el que dos de sus columnas son coordenadas de latitud y longitud. Vamos a ver una manera de cargar esos datos en |PGIS| para poder trabajar con ellos, utilizando las posibilidades de |GDAL|.
+
+Los datos de partida que vamos a cargar en |PGIS| son datos en formato CSV. En concreto, el fichero *otros/csv/incendios.csv*, que encontramos en nuestra carpeta de datos. El enlace a la carpeta de datos se encuentra más abajo, en la sección de ejercicios.
+
+.. seealso:: `Más <http://en.wikipedia.org/wiki/Comma-separated_values>`_ sobre el formato CSV
+
+Lo que vamos a hacer es crear un **fichero VRT**, reconocido por |GDAL|, para poder cargar nuestros datos mediante la herramienta ``ogr2ogr``. El formato VRT está basado en XML, y permite crear datasets a partir de otros datasets, únicamente indicando de dónde y cómo se tienen que leer los datos. Para nuestro ejemplo, el fichero VRT a generar contendrá lo siguiente::
+	
+	<OGRVRTDataSource>
+		<OGRVRTLayer name="terremotos">
+			<SrcDataSource>terremotos.csv</SrcDataSource>
+			<GeometryType>wkbPoint</GeometryType>
+			<LayerSRS>EPSG:4326</LayerSRS>
+			<GeometryField encoding="PointFromColumns" x="longitude" y="latitude"/>
+		</OGRVRTLayer>
+	</OGRVRTDataSource>
+
+Guardamos el fichero con el nombre *terremotos.vrt*. Hemos de guardarlo **en el mismo directorio que nuestro fichero terremotos.csv**. 
+
+Los campos del fichero son bastante auto-explicativos, pero se requieren unos mínimos conocimientos sobre el `modelo de datos OGR <http://www.gdal.org/ogr/ogr_arch.html>`_. La línea más importante es::
+
+	<GeometryField encoding="PointFromColumns" x="longitude" y="latitude"/>
+
+Donde se especifica que se creará un campo geométrico de tipo punto a partir de las columnas *longitude* y *latitude* del fichero CSV.
+
+.. seealso:: `Tutorial del formato VRT <http://www.gdal.org/gdal_vrttut.html>`_
+
+Una vez tenemos nuestro fichero VRT, simplemente ejecutamos ``ogr2ogr`` de manera normal, especificando este fichero como origen. Usamos la base de datos *workshop_sevilla*, creada en la introducción::
+	
+	$ ogr2ogr -a_srs epsg:4326 -f "PostgreSQL" PG:"dbname=workshop_sevilla" terremotos.vrt
+
+Vemos que hemos especificado la opción `-a_srs`. Con este flag simplemente asignamos una proyección a los datos de salida, pero **no se realiza ninguna reproyección**. No es necesario, puesto que ya estamos diciendo en el VRT que se creen los puntos como objetos geométricos con SRID 4326.
+	
+Una vez cargado el fichero, podemos ver en cualquier visor de escritorio su aspecto. En la captura, vemos el fichero cargado desde QGIS. Veremos más sobre los clientes de escritorio en el tema 4.
+
+	.. image::  _images/terremotos_qgis.png
+
+Si bien éste método es muy cómodo para importar ficheros CSV en |PGIS|, no es la única alternativa. Otro camino, algo más largo, es copiar el fichero CSV directamente en |PGSQL| mediante la instrucción *COPY*, generando una tabla no espacial. Posteriomente, añadimos a mano el campo espacial a dicha tabla. 
+
+.. seealso:: La documentación del comando `COPY de PostgreSQL 9 <http://www.postgresql.org/docs/9.1/static/sql-copy.html>`_ 
 
 Ejercicios
 ==========
@@ -370,12 +414,29 @@ Los datos están organizados por tipo y, dentro de esta organización, por forma
 .. note:: Todos los datos han sido obtenidos de fuentes públicas y de libre acceso, o generados manualmente para su uso educativo.
 
 A continuación, los ejercicios a realizar:
-	* Crear una base de datos para el workshop, junto con un usuario
-	* Importar datos shp con shp2pgsql
-	* Importar datos shp con pgAdmin III
-	* Importar datos KML con SPIT
-	* Importar datos CSV con ogr2ogr (creando tabla y usando VRT)
-	* Importar datos OSM con osm2pgsql
-	* Exportar datos vectoriales con pgsql2shp
-	* Exportar datos raster con gdal_translate
-	* Exportar y reproyectar datos raster con gdalwarp
+
+	* Cargar con ``shp2pgsql`` los siguientes datos (todos con encoding ``LATIN1``):
+		* *vectorial/shp/CODIGO_POSTAL.shp*: Transformándolo a SRID 25830 (primero tenemos que conocer el SRID de origen)
+		* *vectorial/shp/Madrid/BCN200_0101S_LIM_ADM.shp*: Transformándolo también a SRID 25830
+		* *vectorial/shp/Toledo/BCN200_0101S_LIM_ADM.shp*: En la misma tabla que el fichero anterior (investigar qué parámetros hacen falta para conseguirlo). Transformándolo también a SRID 25830
+
+	* Cargar con ``ogr2ogr`` los siguientes datos:
+		* *vectorial/shp/Sevilla/TOPONIMO.shp*: Transformándolo a SRID 25830
+		* *vectorial/kml/noticias_incendios.kml*: Asignarle (ojo, no es lo mismo que reproyectar) el SRID 4326
+		* *vectorial/shp/España/centroides_territorios_etrs89.shp*: Transformar la proyección a SRID 25830
+		* *vectorial/shp/TM_WORLD_BORDERS/TM_WORLD_BORDERS.shp*: **OJO**, es posible que sea necesario especificar explícitamente el tipo de geometría para la capa destino, dado que la capa origen mezcla diferentes tipos. Investigar las `opciones de ogr2ogr para conseguirlo <http://www.gdal.org/ogr2ogr.html>`_.
+
+	* Cargar el fichero *csv/incendios.csv* mediante el uso del comando *COPY*. Investigar para ello el uso de las opciones *FORMAT* y *DELIMITER* de *COPY*. Tras copiar el fichero, añadir a la tabla un campo entero autoincrementable (pista: *BIGSERIAL*) y un campo geométrico de tipo punto, asignándole a la tabla el SRID 4326 (pista: investigar las funciones `ST_SetSRID <http://postgis.net/docs/manual-2.0/ST_SetSRID.html>`_ y `ST_MakePoint <http://postgis.net/docs/manual-2.0/ST_MakePoint.html>`_). Por último, añadir un índice espacial de tipo GiST a la columna geométrica. 
+
+
+	* Cargar con ``ogr2ogr`` el fichero *vectorial/gpx/traza1.gpx* pero creando previamente la tabla a mano. Para ello, investigar los flags *-append* y *-update* de `ogr2ogr <http://www.gdal.org/ogr2ogr.html>`_. Del fichero GPX, nos van a interesar solo el campo geométrico y los campos *ele* y *time* (pista: investigar el uso del flag *-sql*, y ejecutar una consulta SQL sobre el fichero, obteniendo solo esos dos campos). La tabla donde se cargará el fichero tendrá la siguiente estructura::
+
+		CREATE TABLE gps_track_points
+		(
+			fid serial NOT NULL,
+			the_geom geometry(Point,25830),
+			ele double precision,
+			"time" timestamp with time zone,
+			CONSTRAINT activities_pk PRIMARY KEY (fid)
+		);
+
