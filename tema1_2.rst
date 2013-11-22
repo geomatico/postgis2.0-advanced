@@ -213,7 +213,7 @@ La primera herramienta, ``gdal_translate``, funciona de manera análoga a ``ogr2
 Aunque el formato de la cadena de conexión con |PRAS| es muy parecido al formato de la cadena de conexión con |PGIS| (ver `Exportación de datos vectoriales`), hay algunas diferencias importantes. Concretamente:
 	* En la cadena de conexión con |PRAS| es necesario especificar la tabla sobre las que operar mediante el parámetro ``table=<nombre_tabla>``, mientras que la cadena de conexión de |PGIS| no incluye esta información, siendo un parámetro separado.
 	* La cadena de conexión de |PGIS| incluye el parámetro ``mode=<modo>``, que puede tomar los valores 1 (considera cada fila de la tabla un raster separado) y 2 (considera toda la tabla como una cobertura raster completa). Por defecto toma el valor 1, así que si queremos leer nuestra tabla como un solo raster, hemos de especificar explícitamente ``mode=2`` 
-	* Es posible especificar un grupo de filas de la tabla que queremos exportar, de manera que lo que exportamos es una porción del raster, no el raster completo. Para ello, además del parámetro ``mode=2``, podemos añadir un nuevo parámetro a la cadena, con la forma ``where=<sql_where>``, donde ``<sql_where>`` representa cualquier expresión aceptada por |PSQL| como clausula *where* de una consulta.
+	* Es posible especificar un grupo de filas de la tabla que queremos exportar, de manera que lo que exportamos es una porción del raster, no el raster completo. Para ello, además del parámetro ``mode=2``, podemos añadir un nuevo parámetro a la cadena, con la forma ``where=<sql_where>``, donde ``<sql_where>`` representa cualquier expresión aceptada por |PGSQL| como clausula *where* de una consulta.
 
 Veamos unos ejemplos, para apreciar más claramente estas diferencias
 
@@ -299,6 +299,31 @@ a diferencia de las geometrías características como:
 	
 una característica particular es la ausencia de polígonos dentro del modelo, estos se realizan mediante la asignación de una relación a una linea cerrada. Esta particularidad no impide que los datos de OSM puedan ser adaptados al modelo de geometrías normal mediante cargadores de datos OSM. A continuación se presentan dos de los más utilizados
 
+
+Obtener datos de |OSM|
+----------------------
+
+Si queremos obtener datos de |OSM| para utilizarlos en nuestras aplicaciones, podemos dirigirnos a `http://www.openstreetmap.org/export <http://www.openstreetmap.org/export>`_. En dicha página, veremos que se nos presenta un mapa y las coordenadas lat, lon de la zona representada, junto con un botón de *Exportar* listo para obtener esos datos. Adicionalmente, se nos permite seleccionar a mano una zona diferente. En la siguiente captura podemos observar estas funcionalidades:
+
+	.. image::  _images/osm_export1.png
+		:scale: 50%
+
+Si estamos interesados en una zona diferente a la que aparece en el mapa, podemos lanzar una búsqueda mediante la caja destinada a tal efecto en el lado izquierdo de la pantalla. En la captura se observa:
+
+	.. image::  _images/osm_export2.png
+
+Una vez tenemos nuestra zona de interés seleccionada, podemos exportarla mediante el botón de *Exportar*. Si la zona en cuestión es demasiado grande, se nos redireccionará a una página con enlace a sitios de descarga masiva de datos. Uno de estos sitios es `http://download.geofabrik.de/ <http://download.geofabrik.de/>`_. 
+
+El fichero descargado estará en formato .osm. Para poder importar dicho formato a |PGIS|, utilizaremos el cargador ``osm2pgsql``. Pero antes de eso, vamos a activar en |PGSQL| la extensión *hstore*. Con esta extensión, podremos almacenar en una columna un dato de tipo *clave => valor*. Eso nos permitirá usar etiquetas en las consultas que realicemos. Como por ejemplo::
+
+	$ SELECT way, tags FROM planet_osm_polygon WHERE (tags -> 'landcover') = 'trees';
+
+.. seealso:: Para tener más información, ir a `http://wiki.openstreetmap.org/wiki/Osm2pgsql#hstore <http://wiki.openstreetmap.org/wiki/Osm2pgsql#hstore>`_
+
+
+Veamos a continuación el uso de la herramienta ``osm2pgsql``
+
+
 osm2pgsql
 ---------
 Mediante el uso de este programa podremos incorporar en nuestra base de datos los datos obtenidos desde OSM. Una vez que hemos realizado la importación, aparecerán en nuestra base de datos las tablas que serán el resultado de esta importación:
@@ -328,13 +353,23 @@ algunas de las opciones se detallan a continuación:
 	* *-S <fichero_de_estilos>* ruta al fichero que indica las etiquetas de OSM que se quiere importar
 	* *-v* modo verborrea, muestra la salida de las operaciones por consola
 
-En caso de no disponer del SRID 900913 en nuestro |PGSQL| podremos utilizar la definición que hay de él en ``osm2pgsql``. Simplemente ejecutaremos el script ``900913.sql``
+El siguiente comando cargaría *mifichero.osm* en |PGIS|. Las tablas generadas, como ya se ha dicho, serían *planet_osm_point*, *planet_osm_line*, *planet_osm_polygon* y *planet_osm_roads*::
+	$ osm2pgsql -d <mi_base_datos> --hstore mifichero.osm
 
 
 
 Ejercicios
 ==========
 
+Como parte práctica de este tema, vamos a cargar los datos que usaremos a lo largo del curso, utilizando las herramientas que hemos visto aquí. Se puede descargar un fichero zip conteniendo todos los datos del taller desde `aquí <https://dl.dropboxusercontent.com/u/6599273/gis_data/taller_sevilla/datos_taller_sevilla.zip>`_ 
+
+Los datos están organizados por tipo y, dentro de esta organización, por formato de fichero. En la siguiente captura se puede apreciar:
+	
+	.. image::  _images/tree_datos.png
+
+.. note:: Todos los datos han sido obtenidos de fuentes públicas y de libre acceso, o generados manualmente para su uso educativo.
+
+A continuación, los ejercicios a realizar:
 	* Crear una base de datos para el workshop, junto con un usuario
 	* Importar datos shp con shp2pgsql
 	* Importar datos shp con pgAdmin III
