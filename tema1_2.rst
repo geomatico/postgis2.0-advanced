@@ -324,8 +324,8 @@ El fichero descargado estará en formato .osm. Para poder importar dicho formato
 Veamos a continuación el uso de la herramienta ``osm2pgsql``
 
 
-osm2pgsql
----------
+Importación de datos |OSM|
+--------------------------
 Mediante el uso de este programa podremos incorporar en nuestra base de datos los datos obtenidos desde OSM. Una vez que hemos realizado la importación, aparecerán en nuestra base de datos las tablas que serán el resultado de esta importación:
 
 	* *planet_osm_point*
