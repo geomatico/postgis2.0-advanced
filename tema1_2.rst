@@ -134,7 +134,7 @@ OGR es capaz de convertir a |PGSQL| todos los formatos que maneja, y será capaz
 	
 podremos comprobar los formatos que maneja la herramienta. La étiqueta ``write`` nos indica si podemos crear este tipo de formatos. Hemos de tener en cuenta el formato de salida para poder manejar los parametros especiales de cada formato.
 
-En la `página principal de |GDAL| <http://www.gdal.org/ogr2ogr.html>`_ podremos encontrar un listado de todas las opciones que nos permite manejar el comando. Detallamos a continuación algunas de las principales opciones con respecto al formato de origen:
+En la `página principal de GDAL <http://www.gdal.org/ogr2ogr.html>`_ podremos encontrar un listado de todas las opciones que nos permite manejar el comando. Detallamos a continuación algunas de las principales opciones con respecto al formato de origen:
 
 	* **-select <lista de campos>** lista separada por comas que indica la lista de campos de la capa de origen que se quiere exportar
 	* **-where <condición>** consulta a los datos de origen
