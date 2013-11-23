@@ -16,6 +16,7 @@ Contents:
    tema1_2
    tema1_3
    tema2
+   tema3
    tema4
    bibliografia
    referencias

@@ -263,4 +263,13 @@ Un poco más cerca
 
 	.. image:: _images/gvsigce_sextante8.png
 		:scale: 50%
+
+
+Ejercicios
+==========
+
+	* Ejercicio 1: Recortar un raster usando un polígono
+
+
+
 .. [1] `http://trac.osgeo.org/postgis/ticket/833 <http://trac.osgeo.org/postgis/ticket/833>`_

@@ -9,6 +9,11 @@
 .. |LX| replace:: GNU/Linux
 
 
+*****
+
+.. note:: Los ejercicios propuestos en este tema han sido adaptados del libro `PostGIS CookBook <http://www.packtpub.com/postgis-to-store-organize-manipulate-analyze-spatial-data-cookbook/book>`_. En dicho libro se encuentran las soluciones a los ejercicios originales, así como otros ejercicios más complejos propuestos y resueltos. Recomendamos el uso de este libro como referencia para el aprendizaje de técnicas avanzadas con |PGIS|
+
+
 Trabajando con datos vectoriales
 ********************************
 

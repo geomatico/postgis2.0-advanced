@@ -80,8 +80,20 @@ Ya estamos listos para instalar la extensión *hstore*::
 	$ psql -d workshop_sevilla -c "create extension hstore"
 
 
-Instalar moskitt y pgmodeler
-============================
+Descargar los datos
+===================
+
+Tanto para los ejemplos como para los ejercicios, se han utilizado unos datos que se encuentran disponibles `aquí <https://dl.dropboxusercontent.com/u/6599273/gis_data/taller_sevilla/datos_taller_sevilla.zip>`_ 
+
+Los datos están organizados por tipo y, dentro de esta organización, por formato de fichero. En la siguiente captura se puede apreciar:
+	
+	.. image::  _images/tree_datos.png
+
+.. note:: Todos los datos han sido obtenidos de fuentes públicas y de libre acceso, o generados manualmente para su uso educativo.
+
+
+Opcional: Instalar moskitt y pgmodeler
+======================================
 
 En el tema 1 utilizaremos los programas `moskitt <http://www.moskitt.org>`_ y `pgmodeler <http://www.pgmodeler.com.br>`_. Ambos nos ayudaran en la labor de diseño y modelado de bases de datos espaciales. Vamos a proceder con su instalación.
 

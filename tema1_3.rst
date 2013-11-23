@@ -405,13 +405,7 @@ Si bien éste método es muy cómodo para importar ficheros CSV en |PGIS|, no es
 Ejercicios
 ==========
 
-Como parte práctica de este tema, vamos a cargar los datos que usaremos a lo largo del curso, utilizando las herramientas que hemos visto aquí. Se puede descargar un fichero zip conteniendo todos los datos del taller desde `aquí <https://dl.dropboxusercontent.com/u/6599273/gis_data/taller_sevilla/datos_taller_sevilla.zip>`_ 
 
-Los datos están organizados por tipo y, dentro de esta organización, por formato de fichero. En la siguiente captura se puede apreciar:
-	
-	.. image::  _images/tree_datos.png
-
-.. note:: Todos los datos han sido obtenidos de fuentes públicas y de libre acceso, o generados manualmente para su uso educativo.
 
 A continuación, los ejercicios a realizar:
 
@@ -443,4 +437,7 @@ A continuación, los ejercicios a realizar:
 			"time" timestamp with time zone,
 			CONSTRAINT activities_pk PRIMARY KEY (fid)
 		);
+
+
+	* Cargar con ``osm2pgsql`` el fichero *vectorial/osm/sevilla.osm*: Asegurarse de que se carga con srid 4326, y no con 900913
 
