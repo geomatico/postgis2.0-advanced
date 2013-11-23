@@ -416,7 +416,11 @@ Los datos están organizados por tipo y, dentro de esta organización, por forma
 A continuación, los ejercicios a realizar:
 
 	* Cargar con ``shp2pgsql`` los siguientes datos (todos con encoding ``LATIN1``):
-		* *vectorial/shp/CODIGO_POSTAL.shp*: Transformándolo a SRID 25830 (primero tenemos que conocer el SRID de origen)
+		* *vectorial/shp/Colombia/barrios_de_bogota.shp
+		* *vectorial/shp/Colombia/railways.shp
+		* *vectorial/shp/Colombia/waterways.shp
+		* *vectorial/shp/Colombia/points.shp
+		* *vectorial/shp/Sevilla/CODIGO_POSTAL.shp*: Transformándolo a SRID 25830 (primero tenemos que conocer el SRID de origen)
 		* *vectorial/shp/Madrid/BCN200_0101S_LIM_ADM.shp*: Transformándolo también a SRID 25830
 		* *vectorial/shp/Toledo/BCN200_0101S_LIM_ADM.shp*: En la misma tabla que el fichero anterior (investigar qué parámetros hacen falta para conseguirlo). Transformándolo también a SRID 25830
 
