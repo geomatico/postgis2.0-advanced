@@ -280,10 +280,15 @@ El resultado es ::
  	panaderia Los Hornitos
 
 
-JOIN y GROUP BY
-===============
+JOIN y funciones agregadas
+==========================
 
-El uso de las relaciones espaciales junto con funciones de agregacion, como **group by**, permite operaciones muy poderosas con nuestros datos. Veamos un ejemplo sencillo: El numero de escuelas que hay en cada uno de los barrios de Bogota::
+El uso de las funciones espaciales de PostGIS en unión con las funciones de agregación de |PGSQL| nos da la posibilidad de realizar análisis espaciales de datos agregados. Una característica muy potente y con diversas utilidades. Veamos unos ejemplos.
+
+Ejemplo 1
+---------
+
+Veamos un ejemplo sencillo: El numero de escuelas que hay en cada uno de los barrios de Bogota::
 
 	#select b.name, count(p.type) as hospitals from barrios_de_bogota b join
 	points p on st_contains(b.geom, p.geom) where p.type = 'hospital' 
@@ -313,9 +318,83 @@ El uso de las relaciones espaciales junto con funciones de agregacion, como **gr
 3. Las filas resultantes son agrupadas por el nombre del barrio y rellenadas con la función de agregación count().
 
 
+Veamos otro ejemplo. La estimación de datos censales, usando como criterio la distancia entre elementos espaciales.
+
+Tomemos como base los datos vectoriales de los barrios de Bogotá y los datos vectoriales de vías de ferrocarril (tablas *barrios_de_bogota* y *railways*, respectivamente). Fijémonos en una línea de ferrocarril que cruza 3 barrios (Fontibón, Puente Aranda, Los Mártires)
+
+
+	.. image:: _images/railways_and_neighborhoods.png 
+		:scale: 50%
+
+En la imagen, se han coloreado los polígonos de los barrios, de manera que los colores más claros suponen menos población.
+
+Construyamos ahora un buffer de 1km alrededor de dicha línea de ferrocarril. Es de esperar que las personas que usen la línea sean las que vivan a una distancia razonable. Para ello, creamos una nueva tabla con el buffer::
+
+	#CREATE TABLE railway_buffer as 
+	SELECT 
+		1 as gid, 
+		ST_Transform(ST_Buffer(
+			(SELECT ST_Transform(geom, 21818) FROM railways WHERE gid = 2), 1000, 'endcap=round join=round'), 4326) as geom;
+
+
+Hemos usado la función *ST_Transform* para pasar los datos a un sistema de coordenadas proyectadas que use el metro como unidad de medida, y así poder especificar 1000m. Otra forma habría sido calcular cuántos grados suponen un metro en esa longitud, y usar ese número como parámetro para crear el buffer (más información en http://en.wikipedia.org/wiki/Decimal_degrees). 
+
+Al superponer dicho buffer sobre la línea, el resultado es éste:
+
+	.. image:: _images/railway_buffer.png
+		:scale: 50%
+
+Como se observa, hay 4 barrios que intersectan con ese buffer. Los tres anteriormente mencionados y Teusaquillo. 
+
+Una primera aproximación para saber la población potencial que usará el ferrocarril sería simplemente sumar las poblaciones de los barrios que el buffer intersecta. Para ello, usamos la siguiente consulta espacial::
+
+	# SELECT SUM(b.population) as pop 
+	FROM barrios_de_bogota b JOIN railway_buffer r 
+	ON ST_Intersects(b.geom, r.geom)
+
+Esta primera aproximación nos da un resultado de **819892** personas. 
+
+No obstante, mirando la forma de los barrios, podemos apreciar que estamos sobre-estimando la población, si utilizamos la de cada barrio completo. De igual forma, si contáramos solo los barrios cuyos centroides intersectan el buffer, probablemente infraestimaríamos el resultado.
+
+La solución pasa por realizar una **estimación proporcional**. Algo que veremos en los ejercicios.
+
+
+Ejemplo 2
+---------
+
+La función `ST_Polygonize <http://postgis.net/docs/manual-2.0/ST_Polygonize.html>`_ es una función agregada muy útil. Crea polígonos a partir de un conjunto de geometrías de entrada. El problema es que genera como salida un objeto de tipo ``GeometryCollection``, incompatible con la mayoría de programas de terceros. En la página de la documentación se sugiere utilizarla en conjunción con `ST_Dump <http://postgis.net/docs/manual-2.0/ST_Dump.html>`_ para extraer cada uno de los polígonos de la colección. Veamos cómo.
+
+Primero, creamos la siguiente función PL/pgSQL::
+	
+	CREATE OR REPLACE FUNCTION polygonize_to_multi (geometry) RETURNS geometry AS $$
+	
+	WITH polygonized AS (
+		SELECT ST_Polygonize($1) AS the_geom),
+	dumped AS (
+		SELECT (ST_Dump(the_geom)).geom AS the_geom FROM polygonized)
+
+	SELECT ST_Multi(ST_Collect(the_geom)) FROM dumped;
+
+	$$ LANGUAGE SQL;
+
+Y con ella, vamos a crear una tabla que contenga las formas simuladas de los edificios a partir de puntos que representan los portales de Sevilla. La creación de la tabla consistirá en la creación de buffers 5 metros alrededor de los portales y quedarnos con el anillo exterior::
+	
+	CREATE TABLE portal_buildings_buffer AS
+	WITH portal_query AS
+		(SELECT ST_ExteriorRing(ST_SimplifyPreserveTopology((ST_Dump(ST_Union(ST_Buffer(wkb_geometry, 5)))).geom, 10)) AS the_geom 
+		FROM portales_recortado) SELECT polygonize_to_multi(the_geom) AS the_geom from portal_query;
+
+El aspecto de la tabla  en QGIS es el siguiente:
+
+	.. image:: _images/ej2_edificios_desde_portales_qgis1.png
+		:scale: 50%
+
+	.. image:: _images/ej2_edificios_desde_portales_qgis2.png
+		:scale: 50%
+
+
 Validación de geometrías
 ========================
-
 
 Una operación común cuando se trabaja con datos vectoriales es validar que dichos datos cumplen ciertas condiciones que los hacen óptimos para realizar análisis espacial sobre los mismos. O de otra forma, que cumplen ciertas condiciones topológicas.
 
@@ -367,3 +446,127 @@ Que devuelve::
  	Self-intersection[1 1]
 
 
+Ejercicios
+==========
+
+A continuación, se proponen unos ejercicios para que el alumno resuelva con el apoyo del docente.
+
+Ejercicio 1: Join espacial para mezclar los campos de dos tablas
+----------------------------------------------------------------
+
+Añadir a la tabla ``toponimo`` un campo adicional que contenga el código postal, obtenido de la tabla ``codigo_postal``. Evitar el uso de consultas anidadas mediante la clausula ``WITH``.
+
+
+
+Ejercicio 2: Añadir otro campo más
+----------------------------------
+
+Añadir a la tabla ``codigo_postal`` un campo adicional que contenga el nombre del munipio para cada polígono, obtenido de la tabla que se proporciona como base::
+
+	create table centroides_sevilla as select c.* 
+	from centroides_territorios_etrs89 c, codigo_postal cp 
+	where st_contains(cp.geom, c.wkb_geometry)
+
+
+Ejercicio 3: Distancias
+-----------------------
+
+Investigar porqué el cálculo de la distancia entre Sevilla y Los Ángeles es erróneo, y modificar la consulta para que devuelva el valor correcto.
+
+.. note:: Pista: Recordar el apartado de sistemas de referencia. ¿Qué problema presenta el sistema de referencia en la que se encuentran los datos (4326)?
+
+
+Ejercicio 4: Mejora del cálculo de distancias
+---------------------------------------------
+
+En este ejercicio vamos a intentar obtener los 10 lugares más cercanos al punto de interés que representa la catedral en la tabla de topónimos (gid = 373)
+
+Una posible consulta que nos daría el resultado deseado es::
+	
+	with searchpoint as (
+		select wkb_geometry from toponimo where ogc_fid = 373
+	) select st_distance(searchpoint.wkb_geometry, toponimo.wkb_geometry) as distance
+	from searchpoint, toponimo order by st_distance(searchpoint.wkb_geometry, toponimo.wkb_geometry) limit 10;
+
+El problema de esta consulta es que no es escalable. Si la tabla tuviera millones de registros, sería muy lenta. La podemos mejorar limitando la búsqueda a un radio::
+	
+	with searchpoint as (
+	select wkb_geometry from toponimo where ogc_fid = 373
+	) select st_distance(searchpoint.wkb_geometry, toponimo.wkb_geometry) as distance
+	from searchpoint, toponimo WHERE ST_DWithin(searchpoint.wkb_geometry, toponimo.wkb_geometry, 1000)
+	ORDER BY ST_Distance(searchpoint.wkb_geometry, toponimo.wkb_geometry) LIMIT 10;
+
+Esto funciona siempre y cuando la longitud de la ventana sea adecuada (por ej: no llega a buscar 1000 registros, porque no hay tantos dentro de la ventana. La aproximación anterior busca sin límite). Si no somos capaces de saber la longitud de la ventana, no es un gran método.
+
+Investigar qué operadores proporciona |PGIS| para mejorar este caso de uso (búsqueda de vecinos más cercanos)
+
+.. note:: Hay una buena introducción al problema en `http://boundlessgeo.com/2011/09/indexed-nearest-neighbour-search-in-postgis/`_
+
+
+Ejercicio 5: Estimación propocional
+------------------------------------
+
+En uno de los ejemplos, intentamos calcular el número de potenciales usuarios de una vía de ferrocarril basándonos en la población censada en los barrios por donde pasaba. No obstante, mirando la forma de los barrios, podemos apreciar que estamos sobre-estimando la población, si utilizamos la de cada barrio completo. De igual forma, si contáramos solo los barrios cuyos centroides intersectan el buffer, probablemente infraestimaríamos el resultado.
+
+En lugar de esto, podemos asumir que la población estará distribuida de manera más o menos homogénea (esto no deja de ser una aproximación, pero más precisa que lo que tenemos hasta ahora). De manera que, si el 50% del polígono que representa a un barrio está dentro del área de influencia (1 km alrededor de la vía), podemos aceptar que el 50% de la población de ese barrio serán potenciales usuarios del ferrocarril. Sumando estas cantidades para todos los barrios involucrados, obtendremos una estimación algo más precisa. Habremos realizado una suma proporcional.
+
+Para realizar esta operación, vamos a construir una función en PL/pgSQL. Esta función la podremos llamar en una query, igual que cualquier función espacial de PostGIS::
+	
+	CREATE OR REPLACE FUNCTION public.proportional_sum(geometry, geometry, numeric)
+	RETURNS numeric AS
+
+	$BODY$
+
+	SELECT $3 * areacalc FROM
+	(SELECT (ST_Area(ST_Intersection($1, $2))/ST_Area($2))::numeric AS areacalc) AS areac;
+
+	$BODY$
+	LANGUAGE sql VOLATILE
+
+Modificar la consulta utilizada en el ejemplo para que, introduciendo el uso de la función ``proporcional_sum``, obtengamos una estimación más precisa de cuántas personas podrían usar potencialmente la vía de ferrocarril. Recordemos que la consulta era::
+	
+	SELECT SUM(b.population) as pop
+	FROM barrios_de_bogota b JOIN railway_buffer r
+	ON ST_Intersects(b.geom, r.geom)
+
+
+
+Ejercicio 6: Simplificación de geometrías
+-----------------------------------------
+
+Mediante el uso de ``ST_Union`` y agregación, crear una versión simplificada de la tabla ``barrios_de_bogota``
+
+
+Ejercicio 7: Arreglando geometrías
+----------------------------------
+
+Comprobar si la tabla ``TM_WORLD_BORDERS`` contiene geometrías inválidas. Si es así, arreglarlas mediante el uso de `ST_MakeValid <http://postgis.net/docs/manual-2.0/ST_MakeValid.html>`_ 
+
+
+Ejercicio 8: Trabajando con trazas GPS
+---------------------------------------
+
+Utilizando la tabla de puntos con las trazas GPS cargadas en el primer tema, vamos a construir una tabla que contenga una línea que los une a todos::
+	
+	select ST_MakeLine(the_geom) AS the_geom,
+		trip_date::date,
+		MIN(trip_time) as start_time	
+		MAX(trip_time) as end_time
+	INTO line_tracks
+	FROM (
+		SELECT the_geom,
+			"time"::date as trip_date,
+			"time" as trip_time
+		FROM gps_track_points
+		ORDER BY trip_time
+	) AS foo GROUP BY trip_date;
+
+	CREATE INDEX gps_track_points_geom_idx ON gps_track_points USING gist(the_geom);
+	CREATE INDEX line_tracks_idx ON line_tracks USING gist(the_geom);
+	CREATE INDEX lim_adm_esp_idx ON lim_adm_esp USING gist(geom);
+
+Calcular la longitud total recorrida a partir de la tabla anterior.
+
+ 
+
+ 
