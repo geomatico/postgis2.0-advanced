@@ -177,7 +177,7 @@ El resultado de la consulta es, como ya se ha adelantado, un conjunto de filas. 
 
 Un coste de -1 indica una arista que no se puede seguir. El campo ``reverse_cost`` solo tiene sentido si los parámetros ``directed`` y ``has_rcost`` son true.
 
-.. todo:: Revisar esto último. No lo acabo de ver claro.
+.. todo:: Revisar esto último. No lo acabo de ver claro. Además, no logro hacerlo funcionar pasando true en esos parámetros.
 
 
 
