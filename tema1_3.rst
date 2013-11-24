@@ -394,7 +394,7 @@ Una vez tenemos nuestro fichero VRT, simplemente ejecutamos ``ogr2ogr`` de maner
 
 Vemos que hemos especificado la opción `-a_srs`. Con este flag simplemente asignamos una proyección a los datos de salida, pero **no se realiza ninguna reproyección**. No es necesario, puesto que ya estamos diciendo en el VRT que se creen los puntos como objetos geométricos con SRID 4326.
 	
-Una vez cargado el fichero, podemos ver en cualquier visor de escritorio su aspecto. En la captura, vemos el fichero cargado desde QGIS. Veremos más sobre los clientes de escritorio en el tema 4.
+Una vez cargado el fichero, podemos ver en cualquier visor de escritorio su aspecto. En la captura, vemos el fichero cargado desde QGIS. Veremos más sobre los clientes de escritorio en el último tema.
 
 	.. image::  _images/terremotos_qgis.png
 
@@ -405,11 +405,13 @@ Si bien éste método es muy cómodo para importar ficheros CSV en |PGIS|, no es
 Ejercicios
 ==========
 
-
-
 A continuación, los ejercicios a realizar:
 
-	* Cargar con ``shp2pgsql`` los siguientes datos (todos con encoding ``LATIN1``):
+Ejercicio 1
+-----------
+
+Cargar con ``shp2pgsql`` los siguientes datos (todos con encoding ``LATIN1``):
+
 		* *vectorial/shp/Colombia/barrios_de_bogota.shp
 		* *vectorial/shp/Colombia/railways.shp
 		* *vectorial/shp/Colombia/waterways.shp
@@ -418,16 +420,28 @@ A continuación, los ejercicios a realizar:
 		* *vectorial/shp/Madrid/BCN200_0101S_LIM_ADM.shp*: Transformándolo también a SRID 25830
 		* *vectorial/shp/Toledo/BCN200_0101S_LIM_ADM.shp*: En la misma tabla que el fichero anterior (investigar qué parámetros hacen falta para conseguirlo). Transformándolo también a SRID 25830
 
-	* Cargar con ``ogr2ogr`` los siguientes datos:
+
+Ejercicio 2
+-----------
+
+Cargar con ``ogr2ogr`` los siguientes datos:
+
 		* *vectorial/shp/Sevilla/TOPONIMO.shp*: Transformándolo a SRID 25830
 		* *vectorial/kml/noticias_incendios.kml*: Asignarle (ojo, no es lo mismo que reproyectar) el SRID 4326
 		* *vectorial/shp/España/centroides_territorios_etrs89.shp*: Transformar la proyección a SRID 25830
 		* *vectorial/shp/TM_WORLD_BORDERS/TM_WORLD_BORDERS.shp*: **OJO**, es posible que sea necesario especificar explícitamente el tipo de geometría para la capa destino, dado que la capa origen mezcla diferentes tipos. Investigar las `opciones de ogr2ogr para conseguirlo <http://www.gdal.org/ogr2ogr.html>`_.
 
-	* Cargar el fichero *csv/incendios.csv* mediante el uso del comando *COPY*. Investigar para ello el uso de las opciones *FORMAT* y *DELIMITER* de *COPY*. Tras copiar el fichero, añadir a la tabla un campo entero autoincrementable (pista: *BIGSERIAL*) y un campo geométrico de tipo punto, asignándole a la tabla el SRID 4326 (pista: investigar las funciones `ST_SetSRID <http://postgis.net/docs/manual-2.0/ST_SetSRID.html>`_ y `ST_MakePoint <http://postgis.net/docs/manual-2.0/ST_MakePoint.html>`_). Por último, añadir un índice espacial de tipo GiST a la columna geométrica. 
+
+Ejercicio 3
+-----------
+
+Cargar el fichero *csv/incendios.csv* mediante el uso del comando *COPY*. Investigar para ello el uso de las opciones *FORMAT* y *DELIMITER* de *COPY*. Tras copiar el fichero, añadir a la tabla un campo entero autoincrementable (pista: *BIGSERIAL*) y un campo geométrico de tipo punto, asignándole a la tabla el SRID 4326 (pista: investigar las funciones `ST_SetSRID <http://postgis.net/docs/manual-2.0/ST_SetSRID.html>`_ y `ST_MakePoint <http://postgis.net/docs/manual-2.0/ST_MakePoint.html>`_). Por último, añadir un índice espacial de tipo GiST a la columna geométrica. 
 
 
-	* Cargar con ``ogr2ogr`` el fichero *vectorial/gpx/traza1.gpx* pero creando previamente la tabla a mano. Para ello, investigar los flags *-append* y *-update* de `ogr2ogr <http://www.gdal.org/ogr2ogr.html>`_. Del fichero GPX, nos van a interesar solo el campo geométrico y los campos *ele* y *time* (pista: investigar el uso del flag *-sql*, y ejecutar una consulta SQL sobre el fichero, obteniendo solo esos dos campos). La tabla donde se cargará el fichero tendrá la siguiente estructura::
+Ejercicio 4
+-----------
+
+Cargar con ``ogr2ogr`` el fichero *vectorial/gpx/traza1.gpx* pero creando previamente la tabla a mano. Para ello, investigar los flags *-append* y *-update* de `ogr2ogr <http://www.gdal.org/ogr2ogr.html>`_. Del fichero GPX, nos van a interesar solo el campo geométrico y los campos *ele* y *time* (pista: investigar el uso del flag *-sql*, y ejecutar una consulta SQL sobre el fichero, obteniendo solo esos dos campos). La tabla donde se cargará el fichero tendrá la siguiente estructura::
 
 		CREATE TABLE gps_track_points
 		(
@@ -439,10 +453,11 @@ A continuación, los ejercicios a realizar:
 		);
 
 
-	* Cargar con ``osm2pgsql`` el fichero *vectorial/osm/sevilla.osm*: Asegurarse de que se carga con srid 4326, y no con 900913
 
-	* Rellenar la tabla *sevilla_osm_lines* creada en el apartado de herencia con solo aquellas geometrías de la tabla *sevilla_all_osm_geometries* que sean de tipo *LineString*.
+Ejercicio 5
+-----------
 
-.. note:: Para rellenar los campos *feature_name* y *feature_type*, se pueden usar, respectivamente, *tags->'name' y *COALESCE(tags->'tourism', tags->'railway', 'other')::varchar(50) As feature_type*, respectivamente
+Cargar con ``osm2pgsql`` el fichero *vectorial/osm/sevilla.osm*: Asegurarse de que se carga con srid 4326, y no con 900913
+
 
 

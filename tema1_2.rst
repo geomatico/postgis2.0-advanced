@@ -263,6 +263,42 @@ Ahora, creamos una vista para generar los puntos a partir de estos valores::
 	
 	DROP VIEW IF EXISTS lonlat_test_points;
 	CREATE VIEW lonlat_test_points AS
-		SELECT lon, lat, ST_MakePoint(lon,lat) as point FROM lonlat_test;
+		SELECT lon, lat, ST_SetSRID(ST_MakePoint(lon,lat), 4326) as point FROM lonlat_test;
 
 Ya tenemos una vista creada que contiene nuestros puntos como elementos geométricos.
+
+
+Ejercicios
+==========
+
+Veamos a continuación unos ejercicios
+
+Ejercicio 1
+-----------
+
+Rellenar la tabla *sevilla_osm_lines* creada en el apartado de herencia con solo aquellas geometrías de la tabla *sevilla_all_osm_geometries* que sean de tipo *LineString*.
+
+.. note:: Para rellenar los campos *feature_name* y *feature_type*, se pueden usar, respectivamente, *tags->'name' y *COALESCE(tags->'tourism', tags->'railway', 'other')::varchar(50) As feature_type*, respectivamente
+
+
+Ejercicio 2
+-----------
+
+Construir un trigger para mantener actualizado el campo geométrico de una tabla. Comenzaremos añadiendo una columna geométrica a nuestra tabla *lonlat_test* (por tanto, la vista *lonlat_test_points* ya no sería necesaria)::
+	
+	SELECT AddGeometryColumn ('public','lonlat_test','geom', 4326,'POINT',2);
+
+Completar el código del presente trigger para poder actualizar la columna geométrica de la tabla después de cada inserción y actualización::
+	
+	CREATE OR REPLACE FUNCTION lonlat_test_pop_geom()
+		RETURNS TRIGGER AS $popgeom$
+
+	BEGIN
+		-- Insertar el código del trigger
+
+		RETURN NEW;
+	END;
+
+	$popgeom$ LANGUAGE plpgsql;
+
+
