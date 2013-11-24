@@ -105,6 +105,19 @@ Con esto creamos una nueva base de datos, con nombre ``pgrouting_workshop``, y u
 
 .. note:: En OSGeo Live 7 ya existe una base de datos, con nombre ``pgrouting`` que contiene estos datos. Creamos otra diferente para poder ver todo el proceso de instalación (abrir *pgrouting_notopo.sql* para ver con más detenimiento las instrucciones que ejecuta) y dejar la original inalterada. Para comenzar a trabajar con la original, visitar `http://live.osgeo.org/en/quickstart/pgrouting_quickstart.html`_
 
+
+Instalar software adicional
+===========================
+
+Vamos a usar git para instalar algunas cosas, como OSRM. Necesitamos instalarlo, junto con otros paquetes ::
+	
+	$ sudo apt-get install build-essential git cmake pkg-config libprotoc-dev libprotobuf7 \
+	protobuf-compiler libprotobuf-dev libosmpbf-dev libpng12-dev \
+	libbz2-dev libstxxl-dev libstxxl-doc libstxxl1 libxml2-dev \
+	libzip-dev libboost-all-dev lua5.1 liblua5.1-0-dev libluabind-dev libluajit-5.1-dev
+
+
+
 Descargar los datos
 ===================
 

@@ -100,7 +100,7 @@ Como ya hemos comentado en la introducción, el algoritmo básico de cálculo de
                 1, 4, false, false
         );
 
-El resultado es el siguiente::
+El resultado es el siguiente::git clone git://github.com/DennisOSRM/Project-OSRM.git
 	
 	pgr_dijkstra       
 	-------------------------
@@ -187,6 +187,17 @@ Algoritmo A*
 ------------
 
 
+Cálculo de rutas con OSRM
+=========================
+
+Podemos acceder a una demo del producto en `http://map.project-osrm.org/`_
+
+Podemos instalar nuestra propia versión::
+
+	$ git clone git://github.com/DennisOSRM/Project-OSRM.git
+	
+
+
 Ejercicios
 ==========
 
@@ -216,13 +227,23 @@ La siguiente captura está hecha con QGIS, etiquetando los vértices (tabla *ver
 
 .. note:: En esta segunda captura, lo que se etiqueta en las aristas es el coste. En la primera captura, era el id de la arista
 
-Calcular el camino más corto del nodo 13 al nodo 4. Transformar el resultado en geometrías de tipo LineString, y crear con ellas una tabla para poder visualizarla en PostGIS.
+Calcular el camino más corto del nodo 4 al nodo 1, asumiendo que el grafo es no dirigido. Transformar el resultado en geometrías de tipo LineString, y crear con ellas una tabla para poder visualizarla en PostGIS.
 
 
 Ejercicio 2
 -----------
 
-Repetir el ejercicio 1 con el algoritmo A*. Asegurarse de que la tabla de aristas cumple las condiciones necesarias para poder ejecutar el algoritmo
+Repetir el ejercicio 1 con el algoritmo A*. Asegurarse de que la tabla de aristas cumple las condiciones necesarias para poder ejecutar el algoritmo.
+
+
+Ejercicio 3
+-----------
+
+Repetir las dos búsquedas anteriores, pero asumiendo que el grafo es dirigido. Comparar los resultados.
+
+
+Ejercicio 4
+-----------
 
 
 
