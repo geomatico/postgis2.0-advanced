@@ -79,10 +79,31 @@ Ya estamos listos para instalar la extensión *hstore*::
 
 	$ psql -d workshop_sevilla -c "create extension hstore"
 
-Por último, vamos a crear una base de datos específica para el apartado de routing::
 
-	$ createdb --encoding=UTF8 workshop_routing
-	$ psql -d workshop_routing -c "create extension pgrouting"
+Por último, vamos a crear una base de datos específica para el apartado de routing. Para ello, en primer lugar instalamos algunos datos del workshop de pgRouting ofrecido por los propios desarrolladores::
+	
+	$ sudo add-apt-repository ppa:georepublic/pgrouting-unstable
+	$ sudo apt-get update
+
+	$ sudo apt-get install pgrouting-workshop
+
+Copiamos la carpeta de datos a nuestro escritorio, y al root del servidor web de la máquina::
+
+	$ cp -R /usr/share/pgrouting/workshop ~/Desktop/pgrouting-workshop
+	$ sudo ln -s ~/Desktop/pgrouting-workshop /var/www/pgrouting-workshop
+
+Finalmente, cargamos los datos proporcionados, para crear una topología con la que poder trabajar::
+	
+	$ cd ~/Desktop/pgrouting-workshop/
+	$ tar -xvzf data.tar.gz
+
+	$ psql -f ~/Desktop/pgrouting-workshop/data/sampledata_notopo.sql
+
+Con esto creamos una nueva base de datos, con nombre ``pgrouting_workshop``, y una serie de tablas que nos resultarán útiles.
+
+.. seealso:: `http://workshop.pgrouting.org/chapters/topology.html#load-network-data`_
+
+.. note:: En OSGeo Live 7 ya existe una base de datos, con nombre ``pgrouting`` que contiene estos datos. Creamos otra diferente para poder ver todo el proceso de instalación (abrir *pgrouting_notopo.sql* para ver con más detenimiento las instrucciones que ejecuta) y dejar la original inalterada. Para comenzar a trabajar con la original, visitar `http://live.osgeo.org/en/quickstart/pgrouting_quickstart.html`_
 
 Descargar los datos
 ===================
