@@ -441,3 +441,8 @@ A continuación, los ejercicios a realizar:
 
 	* Cargar con ``osm2pgsql`` el fichero *vectorial/osm/sevilla.osm*: Asegurarse de que se carga con srid 4326, y no con 900913
 
+	* Rellenar la tabla *sevilla_osm_lines* creada en el apartado de herencia con solo aquellas geometrías de la tabla *sevilla_all_osm_geometries* que sean de tipo *LineString*.
+
+.. note:: Para rellenar los campos *feature_name* y *feature_type*, se pueden usar, respectivamente, *tags->'name' y *COALESCE(tags->'tourism', tags->'railway', 'other')::varchar(50) As feature_type*, respectivamente
+
+

@@ -50,20 +50,48 @@ El mecanismo de poder añadir y quitar la herencia implica que, realmente, una t
 
 Veamos un ejemplo de herencia de tablas, extraído del libro *PostGIS in Action*. El ejemplo pretende modelar una ciudad como París, usando para ello la herencia de tablas. Nosotros cambiaremos la ciudad por Sevilla. El diseño está pensado para almacenar los datos presentes en |OSM| simplificados, y permitir cruzar datos con nuestras propias tablas.
 
-En primer lugar, se crea la tabla padre::
+En primer lugar, creamos una tabla para almacenar todas las geometrías de |OSM|, independientemente de su tipo::
+	
+	CREATE TABLE sevilla_all_osm_geometries(
+	gid serial NOT NULL,
+        osm_id integer, 
+	geom geometry,
+        cod_post character varying(5), 
+        tags hstore,
 
-	CREATE TABLE sevilla(gid SERIAL PRIMARY KEY, osm_id integer, cod_post integer, feature_name varchar(200), feature_type varchar(50), geom geometry);
-	ALTER TABLE sevilla ADD CONSTRAINT enforce_dims_geom CHECK (st_ndims(geom) = 2);
-	ALTER TABLE sevilla ADD CONSTRAINT enforce_srid_geom CHECK (st_srid(geom) = 25830);
+        CONSTRAINT sevilla_all_osm_geometries_pk PRIMARY KEY (gid),
+        CONSTRAINT enforce_dims_geom CHECK (st_ndims(geom) = 2),
+        CONSTRAINT enforce_srid_geom CHECK (st_srid(geom) = 4326)
+	);
 
-Se ha especificado una columna de tipo *geometry*, sin más, y añadido un par de restricciones sobre el número de dimensiones de las geometrías y el el SRID de las mismas (ETRS89 con dimensiones en metros, cómodo para medir distancias).
+Y la rellenamos, sin incluir todos los campos de |OSM|. Usamos la tabla *codigo_postal* para incluir también el código postal de cada zona::
+	
+	INSERT INTO sevilla_all_osm_geometries(osm_id, geom, cod_post, tags)
+	SELECT o.osm_id, ST_Intersection(o.geom, a.geom) As geom, a.cod_postal, o.tags
+	FROM
+		(SELECT osm_id, way As geom, tags FROM planet_osm_line) AS O 
+		INNER JOIN 
+		(select cod_postal, st_transform(geom, 4326) as geom FROM codigo_postal) AS A 
+		ON (ST_Intersects(o.geom, a.geom));
 
-Lo siguiente es crear una tabla hijo, para almacenar las geometrías de tipo *polygon* que se pueden encontrar el |OSM|::
 
-	CREATE TABLE sevilla_polygons(tags hstore, CONSTRAINT sevilla_polygons_pk PRIMARY KEY (gid)) INHERITS (sevilla);
+Ahora vamos a crear una clase padre::
+	
+	CREATE TABLE sevilla_osm(gid SERIAL PRIMARY KEY, osm_id integer, cod_post character varying(5), 
+	feature_name varchar(200), feature_type varchar(50), geom geometry);
 
+	ALTER TABLE sevilla_osm ADD CONSTRAINT enforce_dims_geom CHECK (st_ndims(geom) = 2);
+	ALTER TABLE sevilla_osm ADD CONSTRAINT enforce_srid_geom CHECK (st_srid(geom) = 4326);
 
-.. todo:: terminar esto, usando tabla de codigo_postal
+Creamos una clave primaria en la clase padre a pesar de que ésta no vaya a almacenar ningún dato. Lo hacemos porque se considera buena práctica añadida claves primarias a todas las tablas. Algunos programas de terceros, de hecho, lo van a requerir.
+
+Ahora creamos la clase hija que almacenará **solo las líneas**::
+	
+	CREATE TABLE sevilla_osm_lines(tags hstore,
+    	CONSTRAINT sevilla_osm_lines_pk PRIMARY KEY (gid)) INHERITS (sevilla_osm);
+
+Se deja como ejercicio para el alumno rellenar esta clase hija con los datos necesarios de la tabla *sevilla_all_osm_geometries*
+
 
 
 La importancia del SRID
@@ -96,9 +124,9 @@ Para transformar una esfera en un plano, y poder trabajar con geometría Euclíd
 
 Como ejercicio, vamos a ver la diferencia que hay entre dos sistemas de referencia proyectados (23030 y 25830, usados en España) y uno no proyectado. Basta con entrar en las siguientes urls y elegir *Human Readable OGC-WKT*. Comentar las diferencias.
 
-EPSG:23030 (proyectado): `http://spatialreference.org/ref/epsg/23030/ <http://spatialreference.org/ref/epsg/23030/>`_
-EPSG:25830 (proyectado): `http://spatialreference.org/ref/epsg/25830/ <http://spatialreference.org/ref/epsg/25830/>`_
-EPSG:4326 (no proyectado): `http://spatialreference.org/ref/epsg/4326/ <http://spatialreference.org/ref/epsg/4326/>`_
+	* EPSG:23030 (proyectado): `http://spatialreference.org/ref/epsg/23030/ <http://spatialreference.org/ref/epsg/23030/>`_
+	* EPSG:25830 (proyectado): `http://spatialreference.org/ref/epsg/25830/ <http://spatialreference.org/ref/epsg/25830/>`_
+	* EPSG:4326 (no proyectado): `http://spatialreference.org/ref/epsg/4326/ <http://spatialreference.org/ref/epsg/4326/>`_
 
 En |PGIS| existe una tabla que guarda los SRS. Se llama `spatial_ref_sys`. Comentar su contenido.
 
