@@ -289,7 +289,7 @@ El resultado es::
 
 Si observamos los valores obtenidos, vemos que son números exageradamente altos para representar temperaturas en grados centígrados. Lo que sucede es que estos valores están escalados por 100. Más información `aquí <http://www.prism.oregonstate.edu/docs/meta/temp_realtime_monthly.htm>`_. 
 
-Se propondrá como ejercicio para el alumno el generar una nueva banda en el ráster conteniendo los valores con su escala real.
+En el próximo apartado veremos cómo generar una nueva banda en el ráster conteniendo los valores con su escala real.
 
 
 .. seealso:: Para ver más detalles del formato |PRAS| y sus diferencias con el formato de Oracle GeoRaster, se puede consultar `esta presentación <http://es.scribd.com/doc/83774246/FOSS4G-2010-Presentation-PostGIS-Raster-an-Open-Source-alternative-to-Oracle-Georaster>`_ realizada en el congreso FOSS4G en 2010.
@@ -368,8 +368,20 @@ Ejercicios
 Veamos a continuación la mejor manera de entender cómo funciona |PRAS|, con ejemplos prácticos:
 
 
-
 Ejercicio 1
+-----------
+
+Comprobar los valores de la nueva banda añadida en la capa raster *tmean11_spain*. El resultado deberá tener 2 filas, y cada fila tendrá los siguientes resultados **calculados para el raster con gid = 8**:
+	* Número de banda
+	* Número de píxeles en la banda
+	* Suma de los valores de todos los píxeles de la banda
+	* Valor medio de todos los píxeles de la banda
+	* Desviación estándar de los valores de los píxeles de la banda
+	* Valor mínimo de los valores de los píxeles de la banda
+	* Valor máximo de los valores de los píxeles de la banda
+
+
+Ejercicio 2
 -----------
 
 ¿Cuál ha sido la temperatura media del mes de Noviembre en los municipios de Sevilla?
@@ -377,7 +389,7 @@ Ejercicio 1
 .. note:: Pistas: usar la tabla *codigo_postal* (vectorial) y la tabla *tmean11_sevilla* (raster). Recordad que la tabla vectorial tiene un srid diferente al de la tabla raster. Transformar el srid de la tabla vectorial al de la tabla de tipo raster.
 
 
-Ejercicio 2
+Ejercicio 3
 -----------
 
 Crear una nueva capa |PRAS| resultante de recortar la capa raster *pnoa_sevilla*, usando para ello la capa vectorial *codigo_postal*. Concretamente, el municipio de *Salteras*, dentro de dicha capa.
@@ -391,7 +403,7 @@ Crear una nueva capa |PRAS| resultante de recortar la capa raster *pnoa_sevilla*
 Exportar la capa resultante como fichero TIFF usando ``gdal_translate``
 
 
-Ejercicio 3
+Ejercicio 4
 -----------
 
 A partir de la capa creada en el ejercicio anterior, generar una nueva capa con una resolución que sea el 25% de la resolución original. Exportar dicha capa con ``gdal_translate`` como fichero TIFF y compararlo con el anterior.
@@ -405,7 +417,7 @@ A partir de la capa creada en el ejercicio anterior, generar una nueva capa con 
 	)
 
 
-Ejercicio 4
+Ejercicio 5
 -----------
 
 Dentro de las funciones de poligonización de |PRAS|, hay dos con un comportamiento diferente: ``ST_DumpAsPolygons`` y ``ST_PixelAsPolygons``. Vamos a ver sus diferencias con un ejemplo. Partamos de esta consulta::
@@ -434,7 +446,7 @@ Que devuelve 40 resultados.
 Cambiar la consulta para que utilice la función `ST_PixelAsPolygons <http://postgis.net/docs/manual-2.0/RT_ST_PixelAsPolygons.html>`_ . Comparar el número de resultados y cargar ambas capas en QGIS para comprobar las diferencias.
 
 
-Ejercicio 5
+Ejercicio 6
 -----------
 
 Mediante el uso de la función `ST_AsRaster <http://postgis.net/docs/manual-2.0/RT_ST_AsRaster.html>`_ convertir la tabla *codigo_postal* en una cobertura raster. Dicha cobertura raster tendrá:
@@ -446,7 +458,7 @@ Mediante el uso de la función `ST_AsRaster <http://postgis.net/docs/manual-2.0/
 Exportar la capa resultante como fichero TIFF usando ``gdal_translate``
 
 
-Ejercicio 6
+Ejercicio 7
 -----------
 
 Para este ejercicio vamos a cargar un fichero DEM en formato TIFF. Lo construiremos con gdalbuildvrt, igual que hicimos con el mapa de temperaturas. Los comandos a ejecutar son estos::

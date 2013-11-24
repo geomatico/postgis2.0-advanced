@@ -79,6 +79,10 @@ Ya estamos listos para instalar la extensión *hstore*::
 
 	$ psql -d workshop_sevilla -c "create extension hstore"
 
+Por último, vamos a crear una base de datos específica para el apartado de routing::
+
+	$ createdb --encoding=UTF8 workshop_routing
+	$ psql -d workshop_routing -c "create extension pgrouting"
 
 Descargar los datos
 ===================
