@@ -544,7 +544,9 @@ Como se puede apreciar, el camino elegido ha sido 1 - 2 - 5 - 10 - 11. El algori
 Ejemplos: soluciones a problemas comunes
 ----------------------------------------
 
-Es posible que surjan ciertas dudas a la hora de empezar a trabajar con pgRouting. La herramienta proporciona unos pocos algoritmos y funciones básicas, pero el trabajo *duro* aun es responsabilidad del usuario. Veamos algunas preguntas surgidas mientras se trabaja con ello:
+Es posible que surjan ciertas dudas a la hora de empezar a trabajar con pgRouting. La herramienta proporciona unos pocos algoritmos y funciones básicas, pero el trabajo *duro* aun es responsabilidad del usuario. El principio que sigue pgRouting es: aquí tienes estas herramientas para **detectar** errores. Arreglarlos, es responsabilidad del usuario.
+
+Veamos algunas preguntas surgidas mientras se trabaja con pgRouting:
 
 
 Problemas durante la creación de la topología
@@ -829,7 +831,48 @@ Eso es porque pgrouting, como ya mencionamos, solo es un conjunto de *ladrillos*
 	* Queremos eliminar las aristas que han sido segmentadas. Bastaría con que ejecutáramos una sentencia ``DELETE`` por cada una de las antiguas aristas. Al estar ya construida la nueva topología, existirán 2 segmentos donde antes había 1, y podemos eliminarlo con la seguridad de que no vamos a crear una desconexión. Si no queremos borrar aristas, también podemos asignarle a esa ruta un coste virtualmente infinito, o negativo. De esta forma, sería siempre ignorada.
 
 
-.. todo:: Revisar `pgr_analyzeOneWay <http://docs.pgrouting.org/2.0/en/src/common/doc/functions/analyze_oneway.html#pgr-analyze-oneway>`_
+Por último, dedicaremos unas palabras al uso de la función ``pgr_analyzeOneWay``. 
+
+Esta función básicamente detecta nodos *sumidero* (entran N aristas, pero no sale ninguna) y nodos *fuente* (salen N aristas pero no entra ninguna). Nodos de este tipo no deberían existir en nuestra red, porque estarían aislados. 
+
+Para detectarlos, ``pgr_analyzeOneWay`` exige que se haya creado una topología previamente. Es decir:
+	* Que tengamos una tabla de aristas con los campos *source* y *target* correctamente rellenados
+	* Que exista una tabla de vértices conectada con la tabla de aristas.
+
+La función añade dos campos adicionales a la tabla de vértices: *ein* y *eout*. Son campos para almacenar el número de aristas que entran y salen de cada vértice.
+
+Entre los parámetros de la función, vemos que hay cuatro vectores de elementos de tipo texto. Estos cuatro vectores representan las reglas definidas para las aristas. Estas reglas son algo realmente arbitrario, y es responsabilidad del usuario que sean coherentes con la realidad de la red topológica. 
+
+Por *regla*, entendamos una codificación que nos dice si una arista es de sentido único (y en qué dirección) o de doble sentido. Esta codificación la especificamos como a nosotros nos venga en gana. La convención común es añadir una columna de tipo texto a nuestra tabla de aristas y codificar sentido y direccionalidad con identificadores cortos como:
+	* 'B': Significa que la arista es bidireccional
+	* 'FT': Significa que la arista es de sentido único, en dirección del nodo origen al nodo destino
+	* 'TF': Significa que la arista es de sentido único, en dirección del nodo destino al nodo origen
+	* '': No hay datos. En este caso, el algoritmo se comporta como si la arista fuera bidireccional
+	* NULL: Campo nulo. Cómo debe reaccionar el algoritmo ante este tipo de campos es posible especificarlo mediante un parámetro booleano de la función. Si ese parámetro vale 'true', la arista es tratada como de doble sentido. No queda claro qué sucede si el valor de ese argumento es *false*. En cualquier caso, por defecto vale *true*.
+
+El algoritmo espera que el campo de la tabla que contiene la codificación se llame *oneway*. En caso contrario, se especifica su nombre mediante otro de los parámetros. Lo mismo ocurre con los campos de la tabla de aristas que guardan origen y destino de cada una de las aristas. Si no se llaman *source* y *target*, se debe especificar su nombre por defecto.
+
+Sabiendo esto, podríamos lanzar una consulta ``pgr_analyzeOneWay`` sobre nuestros datos de ejemplo::
+	
+	SELECT pgr_analyzeOneway('edge_table',
+		ARRAY['', 'B', 'TF'],
+		ARRAY['', 'B', 'FT'],
+		ARRAY['', 'B', 'FT'],
+		ARRAY['', 'B', 'TF'],
+		oneway:='dir');
+
+Hemos tenido en cuenta el nombre del campo que guarda el sentido y direccionalidad de cada arista (*dir*). 
+
+Lanzado el análisis, podríamos ya obtener un listado de los posibles nodos aislados::
+	
+	SELECT * FROM edge_table_vertices_pgr WHERE ein=0 OR eout=0;
+
+Y cuáles son las aristas conectadas con esos nodos::
+	
+	SELECT gid FROM edge_table a, edge_table_vertices_pgr b WHERE a.source=b.id AND ein=0 OR eout=0
+	UNION
+	SELECT gid FROM edge_table a, edge_table_vertices_pgr b WHERE a.target=b.id AND ein=0 OR eout=0;
+
 
 Cálculo de rutas desde un punto aleatorio a otro
 ------------------------------------------------
