@@ -57,69 +57,6 @@ No en vano, la implementación del driver de |GDAL| para |PRAS|, **hereda direct
 Esto, como ya se ha dicho, tiene la ventaja de la versatilidad. Cada tesela (fila) tiene vida por separado, y puede ser leída como raster independiente o como parte de una cobertura mayor (la tabla). Como desventaja, la lectura de datos |PRAS| para su visualización en tiempo real es especialmente conflictiva, debido a que el cálculo de dimensiones de una capa |PRAS| **no es algo trivial**. Las teselas que forman una cobertura pueden tener diferentes tamaños, e incluso montarse unas con otras, o tener *agujeros*. 
 
 
-Usando GDAL para facilitarnos la carga de datos en |PRAS|
-=========================================================
-
-En el tema 1 vimos el uso básico del cargador de |PRAS|, ``raster2pgsql``. También vimos como la librería |GDAL| nos facilitaba la carga de datos vectoriales en |PGIS| mediante el uso de ``ogr2ogr``. Dicha herramienta supera algunas de las limitaciones con las que cuenta el cargador oficial de |PGIS|, permitiendo cargar datos en muchos más formatos vectoriales que |SHP|.
-
-Actualmente, no es posible realizar la misma función que ``ogr2ogr`` pero con capas raster. El driver de |GDAL| para |PRAS| aun no tiene funcionalidad de escritura, de manera que no se pueden usar ``gdal_translate`` o ``gdalwarp`` para cargar directamente datos en |PRAS|. Pero lo que si podemos hacer es utilizar la versatilidad de |GDAL| para preparar nuestros datos raster con anterioridad a la carga de los mismos en |PRAS|. Lo veremos a continuación.
-
-
-Uniendo capas raster para su carga
-----------------------------------
-
-Vamos a ver con un ejemplo práctico como unir varias capas raster y recortar una zona de interés antes de pasárle los datos a ``raster2pgsql`` para que los cargue en la base de datos.
-
-Lo que queremos cargar es una capa raster que contiene datos de temperaturas medias en todo el continente europeo en el mes de Noviembre de 2010. Los datos los descargamos de `la web de worldclim <http://www.worldclim.org/tiles.php?Zone=15>`_. Como podemos observar, España está dividida entre dos teselas: la 15 y la 16.
-
-Para este ejemplo hemos descargado las capas correspondientes a las teselas 15 y 16, y extraído solo la correspondiente al mes de Noviembre en ambos casos. Como resultado, tenemos dos ficheros GeoTIFF, que cubren la totalidad de Europa. Lo que queremos es recortar, de esos dos ficheros, únicamente la zona de España. Y utilizando solo las herramientas de línea de comandos proporcionadas por |GDAL|.
-
-En la captura, hemos cargado las dos capas en QGIS, coloreándolas de manera diferente, y hecho zoom a la zona de España. Vemos que una parte queda fuera de la primera capa, y entra en la segunda. Los ficheros que representan ambas capas son *alt_15.tif* y *alt_16.tif*
-
-
-	.. image:: _images/ej3_tiffs_temperatura_qgis1.png
-		:scale: 50 %
-
-
-El procedimiento que vamos a realizar pasa por construir un raster virtual en `formato VRT <http://www.gdal.org/gdal_vrttut.html>`_, recortar una porción del raster resultante y cargar esa porción con ``raster2pgsql``. 
-
-Primero, construimos el VRT, en el mismo directorio donde tengamos los datos::
-	
-	$ cd /path/to/data
-	$ gdalbuildvrt tmean11.vrt tmean11_15.tif tmean11_16.tif
-
-Ahora, mediante ``gdal_translate``, recorgamos la zona que nos interesa (las coordenadas han sido obtenidas con QGIS, y su obtención se propone como ejercicio en el tema 4)::
-
-	$ gdal_translate -projwin -9.82594936709 43.9746835443 4.67088607595 35.914556962 tmean11.vrt tmean11_spain.tif
-
-El fichero resultado, *tmean_spain.tif*, puede verse cargado en QGIS:
-
-	.. image:: _images/ej3_tiffs_temperatura_qgis2.png
-		:scale: 50 %
-
-Ya podemos cargar nuestra imagen, mucho más reducida, mediante ``raster2pgsql``, como vimos en el tema 1::
-	
-	$ raster2pgsql -I -C -F -t 36x36 -M -s 4326 tmean11_spain.tif > tmean11_spain.sql
-	$ psql -d workshop_sevilla -f tmean11_spain.sql
-
-
-Lidiando con formatos conflictivos
-----------------------------------
-
-|GDAL| es muy versátil, y capaz de lidiar con formatos gráficos propietarios, tales como `ECW <http://www.gdal.org/frmt_ecw.html>`_ o `MrSID <http://www.gdal.org/frmt_mrsid.html>`_. Para trabajar con ellos, necesita acceso a librerías de terceros. La librería disponible para el formato ECW solo permite lectura en su versión gratuita. Los fuentes se pueden descargar desde `aquí <https://api.opensuse.org/public/source/home:jluce2:GEO/libecwj/libecwj2-3.3.tar.bz2>`_.
-
-En algunos de los ejemplos, se han utilizado imágenes del PNOA (Plan Nacional de Ortofotografía aérea. Más información `aquí <http://www.ign.es/PNOA/>`_. Dichas imágenes están almacenadas en formato ECW, y |GDAL| no es capaz de leerlo por defecto. Es necesario compilar la librería anterior y recompilar GDAL con soporte para la misma, mediante el uso del flag ``--with-ecw``. Hecho eso, seremos capaces de transformar desde el formato ECW a GeoTIFF, y poder trabajar con las imágenes sin problemas de incompatibilidades. Nuestro fichero ECW se llama PNOA_MA_OF_ETRS89_HU30_h50_0984.ecw, y vamos a transformarlo a formato GeoTIFF y reducir su tamaño, para evitar que ocupe demasiado ::
-
-	$ gdal_translate -outsize 10% 10% PNOA_MA_OF_ETRS89_HU30_h50_0984.ecw PNOA_MA_OF_ETRS89_HU30_h50_0984_reduced.tif
-
-Y ya podemos cargar el raster normalmente::
-	
-	$ raster2pgsql -I -C -F -t 53x23 -M -s 25830 PNOA_MA_OF_ETRS89_HU30_h50_0984_reduced.tif pnoa_sevilla > pnoa_sevilla.sql
-	$ psql -d workshop_sevilla -f pnoa_sevilla.sql
-
-
-.. note:: Incluso con la librería compilada con soporte para ECW, pueden existir problemas con el formato. Por ejemplo, en ocasiones |GDAL| no es capaz de decodificar la cabecera del ECW para obtener los metadatos. Recomendamos el uso de la variable de entorno ``GDAL_DEBUG=ecw`` mientras trabajamos con las herramientas de |GDAL|, para poder obtener información extra de depuración que nos de los datos requeridos.
-
 
 |PRAS| Overviews
 ================

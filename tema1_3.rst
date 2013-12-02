@@ -49,7 +49,7 @@ A continuación, veremos un ejemplo de las opciones más típicas usadas a la ho
     
 A destacar algunos detalles:
     * Mediante el uso de la sintaxis -s <srid_origen>:<srid_destino>, **forzamos una proyección del SRID origen al destino**. De esta forma, los datos se almacenarán en PostGIS con el srid de destino. Si solo especificamos un srid, **se asigna el mismo a los datos de destino, sin realizar la reproyección**:
-    * Con la opción `-W LATIN1` especificamos que nuestros datos de origen (fichero dbf) utilizan la codificación LATIN1. Cuando usamos esta opción, todos los atributos del fichero dbf son convertidos de la codificación especificada a UTF8. El SQL generado contendrá el comando ``SET CLIENT_ENCODING to UTF8``, de manera que el servidor será capaz de convertir desde UTF8 al sistema de codificación que esté usando internamente. 
+    * Con la opción `-W LATIN1` especificamos que nuestros datos de origen (fichero dbf) utilizan la codificación LATIN1. Cuando usamos esta opción, todos los atributos del fichero dbf son convertidos de la codificación especificada a UTF8, y el SQL generado contendrá el comando ``SET CLIENT_ENCODING to UTF8``. De esta forma, le estamos diciendo al servidor que todos los datos que le vengan del cliente van a ir en UTF8. Así el servidor podrá convertir de UTF8 a la codificación que esté usando internamente. Si no especificáramos qué tipo de codificación se está usando en el cliente, se adoptaría la misma codificación del servidor.
     * Es recomendable crear un índice espacial sobre la columna de tipo geométrica, si vamos a realizar consultas sobre nuestra tabla que involucren a dicha columna. Lo indicamos con la opción ``-I``
     
 .. seealso:: Una `breve introducción a los sistema de codificación y los juegos de caracteres en Python <http://es.scribd.com/doc/159584080/Python-y-los-encodings>`_
@@ -183,7 +183,61 @@ En el ejemplo anterior, cabe destacar:
 	* Como ya se ha visto, ``ogr2ogr`` es capaz de cargar datos en diversos formatos vectoriales, no únicamente |SHP|. En el ejemplo, cargamos un fichero `KML <http://en.wikipedia.org/wiki/Keyhole_Markup_Language>`_ 
 
 
-.. note:: Actualmente, no es posible cargar datos en PostGIS con la herramienta |GDAL|. De hecho **la única manera de cargar datos raster en PostGIS Raster es mediante el cargador oficial raster2pgsql**
+.. note:: Actualmente, no es posible cargar datos en PostGIS con la herramienta |GDAL|. De hecho **la única manera de cargar datos raster en PostGIS Raster es mediante el cargador oficial raster2pgsql**. No obstante, sí es posible utilizar |GDAL| para pre-procesar datos vectoriales con anterioridad a su carga, como veremos a continuación
+
+
+Importación de datos raster
+---------------------------
+
+Vamos a ver con un ejemplo práctico como unir varias capas raster y recortar una zona de interés antes de pasárle los datos a ``raster2pgsql`` para que los cargue en la base de datos.
+
+Lo que queremos cargar es una capa raster que contiene datos de temperaturas medias en todo el continente europeo en el mes de Noviembre de 2010. Los datos los descargamos de `la web de worldclim <http://www.worldclim.org/tiles.php?Zone=15>`_, pero también se encuentran en nuestra carpeta de datos, dentro del directorio *raster/tif*. Como podemos observar, España está dividida entre dos teselas: la 15 y la 16.
+
+Para este ejemplo hemos descargado las capas correspondientes a las teselas 15 y 16, y extraído solo la correspondiente al mes de Noviembre en ambos casos. Como resultado, tenemos dos ficheros GeoTIFF, que cubren la totalidad de Europa. Lo que queremos es recortar, de esos dos ficheros, únicamente la zona de España. Y utilizando solo las herramientas de línea de comandos proporcionadas por |GDAL|.
+
+En la captura, hemos cargado las dos capas en QGIS, coloreándolas de manera diferente, y hecho zoom a la zona de España. Vemos que una parte queda fuera de la primera capa, y entra en la segunda. Los ficheros que representan ambas capas son *alt_15.tif* y *alt_16.tif*
+
+
+	.. image:: _images/ej3_tiffs_temperatura_qgis1.png
+		:scale: 50 %
+
+
+El procedimiento que vamos a realizar pasa por construir un raster virtual en `formato VRT <http://www.gdal.org/gdal_vrttut.html>`_, recortar una porción del raster resultante y cargar esa porción con ``raster2pgsql``. 
+
+Primero, construimos el VRT, en el mismo directorio donde tengamos los datos::
+	
+	$ cd /path/to/data
+	$ gdalbuildvrt tmean11.vrt tmean11_15.tif tmean11_16.tif
+
+Ahora, mediante ``gdal_translate``, recorgamos la zona que nos interesa (las coordenadas han sido obtenidas con QGIS, y su obtención se propone como ejercicio en el tema 4)::
+
+	$ gdal_translate -projwin -9.82594936709 43.9746835443 4.67088607595 35.914556962 tmean11.vrt tmean11_spain.tif
+
+El fichero resultado, *tmean_spain.tif*, puede verse cargado en QGIS:
+
+	.. image:: _images/ej3_tiffs_temperatura_qgis2.png
+		:scale: 50 %
+
+Ya podemos cargar nuestra imagen, mucho más reducida, mediante ``raster2pgsql``::
+	
+	$ raster2pgsql -I -C -F -t 36x36 -M -s 4326 tmean11_spain.tif > tmean11_spain.sql
+	$ psql -d workshop_sevilla -f tmean11_spain.sql
+
+
+|GDAL| es muy versátil, y capaz de lidiar con formatos gráficos propietarios, tales como `ECW <http://www.gdal.org/frmt_ecw.html>`_ o `MrSID <http://www.gdal.org/frmt_mrsid.html>`_. Para trabajar con ellos, necesita acceso a librerías de terceros. La librería disponible para el formato ECW solo permite lectura en su versión gratuita. Los fuentes se pueden descargar desde `aquí <https://api.opensuse.org/public/source/home:jluce2:GEO/libecwj/libecwj2-3.3.tar.bz2>`_.
+
+En algunos de los ejemplos, se han utilizado imágenes del PNOA (Plan Nacional de Ortofotografía aérea. Más información `aquí <http://www.ign.es/PNOA/>`_. Dichas imágenes están almacenadas en formato ECW, y |GDAL| no es capaz de leerlo por defecto. Es necesario compilar la librería anterior y recompilar GDAL con soporte para la misma, mediante el uso del flag ``--with-ecw``. Hecho eso, seremos capaces de transformar desde el formato ECW a GeoTIFF, y poder trabajar con las imágenes sin problemas de incompatibilidades. 
+
+Nuestro fichero ECW se llamaba PNOA_MA_OF_ETRS89_HU30_h50_0984.ecw, y mediante el uso de herramientas de |GDAL| lo transformamos a formato GeoTIFF y redujimos su tamaño, para evitar que ocupe demasiado ::
+
+	$ gdal_translate -outsize 10% 10% PNOA_MA_OF_ETRS89_HU30_h50_0984.ecw PNOA_MA_OF_ETRS89_HU30_h50_0984_reduced.tif
+
+Dicho fichero reducido se encuentra en la carpeta *raster/tiff* de nuestros datos. En los ejercicios se propone su carga para que la realice el alumno.
+
+
+
+.. note:: Incluso con la librería compilada con soporte para ECW, pueden existir problemas con el formato. Por ejemplo, en ocasiones |GDAL| no es capaz de decodificar la cabecera del ECW para obtener los metadatos. Recomendamos el uso de la variable de entorno ``GDAL_DEBUG=ecw`` mientras trabajamos con las herramientas de |GDAL|, para poder obtener información extra de depuración que nos de los datos requeridos.
+
 
 
 
@@ -355,6 +409,7 @@ algunas de las opciones se detallan a continuación:
 	* *-v* modo verborrea, muestra la salida de las operaciones por consola
 
 El siguiente comando cargaría *mifichero.osm* en |PGIS|. Las tablas generadas, como ya se ha dicho, serían *planet_osm_point*, *planet_osm_line*, *planet_osm_polygon* y *planet_osm_roads*::
+	
 	$ osm2pgsql -d <mi_base_datos> --hstore mifichero.osm
 
 
@@ -407,18 +462,52 @@ Ejercicios
 
 A continuación, los ejercicios a realizar:
 
+Ejercicio 0
+-----------
+
+Supongamos que tenemos que importar unos datos a un servidor PostGIS. Nuestros datos están en español, de manera que incluyen acentos, eñes, etc. Pero el servidor está configurado en japonés (codificación ``EUC_JP``). Discutir lo que sucedería si, al cargar esos datos con ``shp2pgsql`` no especificáramos la codificación en la que están. (ej: ``-W LATIN1``).
+
+**Respuesta**
+
+El fichero SQL generado por ``shp2pgsql`` no incluiría la directiva ``SET CLIENT_ENCODING TO UTF8``. Por lo tanto, el servidor esperaría del cliente que le enviara los datos con la misma codificación (``EUC_JP``). Al estar los datos del cliente codificados con ``LATIN1``, el servidor no lo entendería, y lanzaría un error.
+
+Si desde el cliente especificamos ``-W LATIN1``, forzamos a que el cliente establezca su encoding a ``UTF8`` (transformando previamente los datos desde ``LATIN1`` a esa codificación). El servidor, por tanto, esperará que los datos le lleguen en ``UTF8``, como de hecho sucederá. A partir de ahí, ya podrá traducir los datos desde ``UTF8`` a su propia codificación (``EUC_JP``)
+
 Ejercicio 1
 -----------
 
 Cargar con ``shp2pgsql`` los siguientes datos (todos con encoding ``LATIN1``):
 
-		* *vectorial/shp/Colombia/barrios_de_bogota.shp
-		* *vectorial/shp/Colombia/railways.shp
-		* *vectorial/shp/Colombia/waterways.shp
-		* *vectorial/shp/Colombia/points.shp
+		* *vectorial/shp/Colombia/barrios_de_bogota.shp*
+		* *vectorial/shp/Colombia/railways.shp*
+		* *vectorial/shp/Colombia/waterways.shp*
+		* *vectorial/shp/Colombia/points.shp*
 		* *vectorial/shp/Sevilla/CODIGO_POSTAL.shp*: Transformándolo a SRID 25830 (primero tenemos que conocer el SRID de origen)
 		* *vectorial/shp/Madrid/BCN200_0101S_LIM_ADM.shp*: Transformándolo también a SRID 25830
 		* *vectorial/shp/Toledo/BCN200_0101S_LIM_ADM.shp*: En la misma tabla que el fichero anterior (investigar qué parámetros hacen falta para conseguirlo). Transformándolo también a SRID 25830
+
+
+**Respuesta**
+
+Para éste ejercicio y los siguientes, asumimos que los datos han sido descargados tal y como se especifica en el primer tema del presente curso, y que nos situamos en el directorio raiz donde han sido descomprimidos dichos datos. También asumimos que se ha configurado el acceso a la base de datos tal y como se especifica en el mencionado primer tema, de manera que no es necesario introducir usuario y contraseña para conectar con la base de datos. 
+
+Los comandos a ejecutar son los siguientes, desde una consola::
+	
+	$ shp2pgsql -s 4326 -I -W LATIN1 vectorial/shp/Colombia/waterways.shp > waterways.sql
+	$ psql -d workshop_sevilla -f vectorial/shp/Colombia/waterways.sql
+
+	$ shp2pgsql -s 4326 -I -W LATIN1 vectorial/shp/Colombia/points.shp > points.sql
+	$ psql -d workshop_sevilla -f vectorial/shp/Colombia/points.sql
+	
+	$ shp2pgsql -s 4258:25830 -I -W LATIN1 vectorial/shp/Sevilla/CODIGO_POSTAL.shp > CODIGO_POSTAL.sql
+	$ psql -d workshop_sevilla -f vectorial/shp/Sevilla/CODIGO_POSTAL.sql
+
+	$ shp2pgsql -s 4258:25830 -I -W LATIN1 vectorial/shp/Madrid/BCN200_0101S_LIM_ADM.shp Lim_Adm_Esp > BCN200_0101S_LIM_ADM.sql
+	$ psql -d workshop_sevilla -f vectorial/shp/Madrid/BCN200_0101S_LIM_ADM.sql
+
+	$ shp2pgsql -s 4258:25830 -a -W LATIN1 vectorial/shp/Toledo/BCN200_0101S_LIM_ADM.shp Lim_Adm_Esp > BCN200_0101S_LIM_ADM.sql
+	$ psql -d workshop_sevilla -f vectorial/shp/Toledo/BCN200_0101S_LIM_ADM.sql
+
 
 
 Ejercicio 2
@@ -432,10 +521,71 @@ Cargar con ``ogr2ogr`` los siguientes datos:
 		* *vectorial/shp/TM_WORLD_BORDERS/TM_WORLD_BORDERS.shp*: **OJO**, es posible que sea necesario especificar explícitamente el tipo de geometría para la capa destino, dado que la capa origen mezcla diferentes tipos. Investigar las `opciones de ogr2ogr para conseguirlo <http://www.gdal.org/ogr2ogr.html>`_.
 
 
+**Respuesta**
+
+Los comandos a ejecutar son los siguientes::
+	
+	$ ogr2ogr -f PostgreSQL -t_srs epsg:25830 pg:dbname=workshop_sevilla vectorial/shp/Sevilla/TOPONIMO.shp
+
+	$ ogr2ogr -f PostgreSQL -a_srs epsg:4326 PG:"dbname=workshop_sevilla" vectorial/kml/noticias_incendios.kml
+
+	$ ogr2ogr -f PostgreSQL -t_srs epsg:25830 pg:dbname=workshop_sevilla vectorial/shp/España/centroides_territorios_etrs89.shp
+
+	$ ogr2ogr -f PostgreSQL -nlt PROMOTE_TO_MULTI pg:dbname=workshop_sevilla vectorial/shp/TM_WORLD_BORDERS/TM_WORLD_BORDERS.shp
+
+
 Ejercicio 3
 -----------
 
 Cargar el fichero *csv/incendios.csv* mediante el uso del comando *COPY*. Investigar para ello el uso de las opciones *FORMAT* y *DELIMITER* de *COPY*. Tras copiar el fichero, añadir a la tabla un campo entero autoincrementable (pista: *BIGSERIAL*) y un campo geométrico de tipo punto, asignándole a la tabla el SRID 4326 (pista: investigar las funciones `ST_SetSRID <http://postgis.net/docs/manual-2.0/ST_SetSRID.html>`_ y `ST_MakePoint <http://postgis.net/docs/manual-2.0/ST_MakePoint.html>`_). Por último, añadir un índice espacial de tipo GiST a la columna geométrica. 
+
+
+
+**Respuesta**:
+
+Cargamos tabla de incendios con la sentencia COPY de PostgreSQL. Primero creamos la tabla::
+	
+	CREATE TABLE incendios_modis_24h (
+		latitude float,
+		longitude float,
+		brightness float,
+		scan float,
+		track float,
+		acq_date date,
+		acq_time time,
+		satellite character varying,
+		confidence float,
+		version float,
+		bright_t31 float,
+		frp float
+	);
+
+Luego copiamos el fichero csv a un sitio donde podamos darle permisos de escritura para todos (problema con virtualbox)::
+	
+	cp vectorial/csv/incendios.csv /tmp
+	chmod 777 /tmp/incendios.csv
+
+Ahora ejecutamos COPY::
+	
+	psql -d workshop_sevilla -c "COPY incendios_modis_24h FROM '/tmp/incendios.csv' WITH DELIMITER ',' CSV HEADER;"
+
+Ahora faltaria añadirle una clave primaria y una columna con una geometria construida a partir de lat/long::
+	
+	ALTER TABLE incendios_modis_24h ADD COLUMN gid BIGSERIAL PRIMARY KEY;
+
+Añadimos una columna de geometría::
+
+	ALTER TABLE incendios_modis_24h ADD COLUMN geom geometry(POINT,4326);
+	UPDATE incendios_modis_24h SET geom = ST_SetSRID(ST_MakePoint(longitude,latitude),4326);
+
+Creamos un índice sobre la columna::
+	
+	CREATE INDEX incendios_modis_24h_idx ON incendios_modis_24h USING GIST(geom);
+
+
+Con eso queda cargado. Cosas a tener en cuenta:
+	* Usamos -a_srs porque solo necesitamos asignar una proyección de salida, no reproyectar nada. El único campo geométrico ya está siendo creado con el srid correcto. Si especificáramos -t_srs, intentaría reproyectar la entrada a 4326, y no hace falta.
+	* El campo OGRVRTLayer name tiene que tener el mismo nombre que el fichero, sin extensión. Si no, no lo encuentra.
 
 
 Ejercicio 4
@@ -452,6 +602,12 @@ Cargar con ``ogr2ogr`` el fichero *vectorial/gpx/traza1.gpx* pero creando previa
 			CONSTRAINT activities_pk PRIMARY KEY (fid)
 		);
 
+**Respuesta**
+
+La instrucción sería así::
+	
+	$ ogr2ogr -append -update -s_srs epsg:4326 -t_srs epsg:25830 -f PostgreSQL PG:"dbname='workshop_sevilla'" /media/sf_data/vectorial/gps/traza1.gpx -nln gps_track_points -sql "SELECT ele, time FROM track_points"
+
 
 
 Ejercicio 5
@@ -460,4 +616,57 @@ Ejercicio 5
 Cargar con ``osm2pgsql`` el fichero *vectorial/osm/sevilla.osm*: Asegurarse de que se carga con srid 4326, y no con 900913
 
 
+**Respuesta**
 
+La instrucción sería así::
+	
+	$ osm2pgsql -d workshop_sevilla --latlong --hstore vectorial/osm/sevilla.osm
+
+
+Ejercicio 6
+-----------
+
+Cargar los datos raster correspondientes a alturas medias de terreno en España. Los ficheros, que se encuentran en nuestra carpeta de datos, en el directorio *raster/tiff*, se llaman ``amean_15.tif`` y ``amean_16.tif``. También pueden ser descargados de `http://www.worldclim.org/tiles.php?Zone=15`_.
+
+Usar la misma técnica que se ha utilizado para los datos de temperaturas medias, mediante el uso de `gdalbuildvrt <http://www.gdal.org/gdalbuildvrt.html>`_ y `gdal_translate <http://www.gdal.org/gdal_translate.html>`_. Asegurarse de que:
+
+	* Se crea un índice sobre la columna de tipo raster
+	* Se ejecuta *VACUUM ANALYZE* tras la carga
+	* Se añade a la tabla una columna con el nombre del fichero
+	* Se tesela el raster en fragmentos de 36x36 píxeles
+
+**Respuesta**
+
+Primero, construimos un solo fichero VRT a partir de nuestros ficheros TIFF::
+	
+	$ gdalbuildvrt raster/tiff/amean.vrt raster/tiff/alt_15.tif raster/tiff/alt_16.tif
+
+Recortamos la zona que nos interesa con gdal_translate::
+	
+	$ gdal_translate -projwin -9.82594936709 43.9746835443 4.67088607595 35.914556962 -of GTiff raster/tiff/amean.vrt raster/tiff/amean_spain.tif
+
+Y cargamos el raster resultante en la base de datos con raster2pgsql::
+	
+	$ raster2pgsql -I -C -F -t 36x36 -M -s 4326 raster/tiff/amean_spain.tif > amean_spain.sql
+	$ psql -d workshop_sevilla -f raster/tiff/amean11_spain.sql
+
+Ya se puede ver el raster con gdalinfo::
+	
+	$ gdalinfo PG:"dbname=workshop_sevilla host=127.0.0.1 user=user password=user port=5432 table=amean_spain mode=2"
+
+Dos cosas a comentar:
+	* Hay que especificar la cadena completa de conexión, con user, password, host y port. No pilla los parámetros del so, como el driver PostGIS de OGR
+	* Si se quiere reproyectar el raster, hay que hacerlo antes de cargar. Algo como raster2pgsql -s 4326:28530 NO funciona
+
+
+Ejercicio 7
+-----------
+
+Cargar el fichero raster ``PNOA_MA_OF_ETRS89_HU30_h50_0984_reduced.tif``, que se encuentra en la carpeta de datos *raster/tiff*. La tabla generada recibirá el nombre de *pnoa_sevilla* y tendrá una columna con el nombre del fichero. Teselar los datos en fragmentos de 53x23 píxeles, y asegurarse de que se ejecuta *VACUM ANALYZE* tras la carga
+
+**Respuesta**
+
+Éstas son las instrucciones a ejecutar::
+ 
+	$ raster2pgsql -I -C -F -t 53x23 -M -s 25830 raster/tiff/PNOA_MA_OF_ETRS89_HU30_h50_0984_reduced.tif pnoa_sevilla > pnoa_sevilla.sql
+	$ psql -d workshop_sevilla -f pnoa_sevilla.sql

@@ -164,6 +164,9 @@ Los principales métodos de la clase Geometry para chequear predicados espaciale
 	* **Covers (A, B)**: Ningún punto de B está en el exterior de A. B está contenido en A.
 	* **CoveredBy (A, B)**: Es el inverso de Covers. CoveredBy(A, B) = Covers(B, A)
 
+.. note:: La diferencia entre ``covers`` y ``contains`` es que *covers(a,b)* no se fija en si los puntos de b están en el interior de a o en su borde. *contains* exige que al menos un punto del interior de b esté en el interior de a, y no en su borde. Por eso, si a y b son dos circunferencias exactamente iguales, ``st_covers(a, b)`` devolvería *true*, y ``st_contains`` devolvería *false*
+
+
 Ejemplos
 --------
 
@@ -239,6 +242,28 @@ Cualquier función que permita crear relaciones TRUE/FALSE entre dos tablas pued
 
 La última función se utiliza en cálculo de distancias. Algo que veremos con más detenimiento en el siguiente apartado
 
+Novedades en |PGIS| 2 con respecto a la gestión de las geometrías
+=================================================================
+
+En |PGIS| 1.5, el proceso para crear una geometría en una tabla consistía en 2 pasos:
+
+	* ``CREATE TABLE ...``, *sin* la columna geométrica
+	* ``SELECT AddGeometryColumn(...``, para añadir la columna geométrica a la tabla y registrarla en ``geometry_columns``
+
+Y para asegurarse de que todas las columnas geométricas eran añadidas: ``SELECT populate_geometry_columns(...``
+
+A partir de |PGIS| 2, este proceso se simplifica. ``geometry_columns`` *pasa a ser una vista*, que lee de los catálogos del sistema. Además, *se actualiza automáticamente*, de manera que siempre está sincronizada con las definiciones de las tablas geométricas existentes.
+
+La creación de una tabla de tipo geométrico se hace utilizando los *type modifiers* de PostgreSQL. Un ejemplo::
+	
+	CREATE TABLE mi_tabla_geometrica(
+		gid serial NOT NULL,
+		nombre character varying(20),
+		descripcion character varying(200),
+		geom geometry(Polygon, 25830)	
+	); 
+
+Aunque aun sigue siendo posible utilizar el antiguo comportamiento.
 
 Cálculo de distancias y transformación de coordenadas
 =====================================================
@@ -361,8 +386,7 @@ Esta primera aproximación nos da un resultado de **819892** personas.
 
 No obstante, mirando la forma de los barrios, podemos apreciar que estamos sobre-estimando la población, si utilizamos la de cada barrio completo. De igual forma, si contáramos solo los barrios cuyos centroides intersectan el buffer, probablemente infraestimaríamos el resultado.
 
-La solución pasa por realizar una **estimación proporcional**. Algo que veremos en los ejercicios.
-
+La solución pasa por realizar una **estimación proporcional**. Algo que se verá más adelante.
 
 Ejemplo 2
 ---------
@@ -396,6 +420,10 @@ El aspecto de la tabla  en QGIS es el siguiente:
 
 	.. image:: _images/ej2_edificios_desde_portales_qgis2.png
 		:scale: 50%
+
+
+
+.. seealso:: La lista completa de funciones agregadas en |PGIS| 2.0 puede ser consultada `aquí <http://postgis.net/docs/manual-2.0/PostGIS_Special_Functions_Index.html#PostGIS_Aggregate_Functions>`_
 
 
 Validación de geometrías
@@ -449,6 +477,45 @@ Que devuelve::
 	# st_isvalidreason
 	------------------------
  	Self-intersection[1 1]
+
+
+Transformaciones de coordenadas
+===============================
+
+.. todo:: Explicar como integrar ficheros de rejilla. Buena intro aquí http://geobide.blogspot.com.es/2011/11/nuevas-opciones-para-transformar-entre.html. Las rejillas de cambio entre 23030 y 25830 se bajan de aquí http://www.ign.es/ign/resources/herramientas/PENR2009.zip
+
+Una de las operaciones más comunes en un sistema de información geográfica es la transformación entre sistemas de referencia espacial. |PGIS| proporciona esta funcionalidad a través de la tabla ``spatial_ref_sys``, que contiene las definiciones de los sistemas de referencia más comunes, y la función ``ST_Transform``, que realiza transformaciones entre los sistemas presentes en dicha tabla.
+
+En `esta introducción teórica <http://geobide.blogspot.com.es/2011/11/nuevas-opciones-para-transformar-entre.html>`_ explica porqué en ocasiones las transformaciones genéricas que pueden ser realizadas mediante esta tabla pueden no ser suficientemente precisas. Es por ello que existen unos ficheros en formato NTv2 que definen rejillas con valores que permiten una transformación más precisa (de hasta 15-20 cm). En España, el IGN permite la descarga de los ficheros que realizan la transformación entre los dos sistemas de referencia oficiales utilizados: ED50 y ETRS89. La descarga está disponible `aquí <http://www.ign.es/ign/layoutIn/herramientas.do>`_.
+
+|PGIS| permite la utilización de ficheros NTv2 para realizar transformaciones de coordenadas. Para poder usarlos, debemos copiarlos en el directorio */usr/share/proj*. De esta forma, serán accesibles por PROJ.4, la librería que realiza las transformaciones de coordenadas realmente.
+
+Hecho eso, tenemos dos opciones:
+	* Modificar las antiguas entradas de la tabla *spatial_ref_sys* para forzar a que las transformaciones se hagan con la rejilla
+	* Añadir nuevas entradas a la tabla *spatial_ref_sys* que sean iguales que las ya existentes, pero utilizando los ficheros de rejilla.
+
+Elejimos la segunda opción, para no perder las transformaciones originales. Para ello, comenzamos por crear 4 entradas nuevas en la tabla *spatial_ref_sys*, copiando la información de las anteriores::
+	
+	insert into public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text)
+		select 923030, auth_name, auth_srid, srtext, proj4text from spatial_ref_sys where srid = 23030;
+	
+	insert into public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text)
+		select 925830, auth_name, auth_srid, srtext, proj4text from spatial_ref_sys where srid = 25830;
+
+	insert into public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text)
+		select 94230, auth_name, auth_srid, srtext, proj4text from spatial_ref_sys where srid = 4230;
+
+	insert into public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text)
+		select 94258, auth_name, auth_srid, srtext, proj4text from spatial_ref_sys where srid = 4258;
+
+Ahora actualizamos los campos *proj4text*, que son los que |PGIS| le va a pasar a PROJ.4 para realizar la transformación::
+	
+	update spatial_ref_sys set proj4text = '+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs +nadgrids=null' where srid = 925830;
+	update spatial_ref_sys set proj4text = '+proj=utm +zone=30 +ellps=intl +units=m +no_defs +nadgrids=PENR2009.gsb' where srid = 923030;
+	update spatial_ref_sys set proj4text = '+proj=longlat +ellps=intl +units=m nadgrids=PENR2009.gsb +no_defs' where srid = 94230;
+	update spatial_ref_sys set proj4text = '+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs' where srid = 94258;
+
+Con esto, ya podríamos usar los SRIDs 923030, 925830, 94230 y 94258 en lugar de 23030, 25830, 4230 y 4258. 
 
 
 Ejercicios
@@ -505,50 +572,22 @@ Esto funciona siempre y cuando la longitud de la ventana sea adecuada (por ej: n
 
 Investigar qué operadores proporciona |PGIS| para mejorar este caso de uso (búsqueda de vecinos más cercanos)
 
-.. note:: Hay una buena introducción al problema en `http://boundlessgeo.com/2011/09/indexed-nearest-neighbour-search-in-postgis/`_
+.. note:: Hay una buena introducción al problema en `este enlace <http://boundlessgeo.com/2011/09/indexed-nearest-neighbour-search-in-postgis/>`_
 
 
-Ejercicio 5: Estimación propocional
-------------------------------------
-
-En uno de los ejemplos, intentamos calcular el número de potenciales usuarios de una vía de ferrocarril basándonos en la población censada en los barrios por donde pasaba. No obstante, mirando la forma de los barrios, podemos apreciar que estamos sobre-estimando la población, si utilizamos la de cada barrio completo. De igual forma, si contáramos solo los barrios cuyos centroides intersectan el buffer, probablemente infraestimaríamos el resultado.
-
-En lugar de esto, podemos asumir que la población estará distribuida de manera más o menos homogénea (esto no deja de ser una aproximación, pero más precisa que lo que tenemos hasta ahora). De manera que, si el 50% del polígono que representa a un barrio está dentro del área de influencia (1 km alrededor de la vía), podemos aceptar que el 50% de la población de ese barrio serán potenciales usuarios del ferrocarril. Sumando estas cantidades para todos los barrios involucrados, obtendremos una estimación algo más precisa. Habremos realizado una suma proporcional.
-
-Para realizar esta operación, vamos a construir una función en PL/pgSQL. Esta función la podremos llamar en una query, igual que cualquier función espacial de PostGIS::
-	
-	CREATE OR REPLACE FUNCTION public.proportional_sum(geometry, geometry, numeric)
-	RETURNS numeric AS
-
-	$BODY$
-
-	SELECT $3 * areacalc FROM
-	(SELECT (ST_Area(ST_Intersection($1, $2))/ST_Area($2))::numeric AS areacalc) AS areac;
-
-	$BODY$
-	LANGUAGE sql VOLATILE
-
-Modificar la consulta utilizada en el ejemplo para que, introduciendo el uso de la función ``proporcional_sum``, obtengamos una estimación más precisa de cuántas personas podrían usar potencialmente la vía de ferrocarril. Recordemos que la consulta era::
-	
-	SELECT SUM(b.population) as pop
-	FROM barrios_de_bogota b JOIN railway_buffer r
-	ON ST_Intersects(b.geom, r.geom)
-
-
-
-Ejercicio 6: Simplificación de geometrías
+Ejercicio 5: Simplificación de geometrías
 -----------------------------------------
 
 Mediante el uso de ``ST_Union`` y agregación, crear una versión simplificada de la tabla ``barrios_de_bogota``
 
 
-Ejercicio 7: Arreglando geometrías
+Ejercicio 6: Arreglando geometrías
 ----------------------------------
 
 Comprobar si la tabla ``TM_WORLD_BORDERS`` contiene geometrías inválidas. Si es así, arreglarlas mediante el uso de `ST_MakeValid <http://postgis.net/docs/manual-2.0/ST_MakeValid.html>`_ 
 
 
-Ejercicio 8: Trabajando con trazas GPS
+Ejercicio 7: Trabajando con trazas GPS
 ---------------------------------------
 
 Utilizando la tabla de puntos con las trazas GPS cargadas en el primer tema, vamos a construir una tabla que contenga una línea que los une a todos::

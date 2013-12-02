@@ -18,9 +18,9 @@ Contents:
    tema2
    tema3
    tema4
-   tema7
+   tema5
+   tema6
    bibliografia
-   referencias
 
 Indices and tables
 ==================

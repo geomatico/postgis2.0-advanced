@@ -14,6 +14,9 @@ Pasos previos para poder seguir el curso
 
 Para poder seguir el **Curso avanzado de PostGIS 2.0** será necesario completar una serie de pasos previos. En este capítulo, veremos cuáles son.
 
+En primer lugar, el software básico con el que se va a trabajar es **PostgreSQL 9.1 + PostGIS 2.0 en una máquina basada en XUbuntu 12.04**.
+
+Veremos ahora los pasos mencionados.
 
 
 Instalar la máquina virtual OSGeo Live 7
@@ -133,7 +136,7 @@ Los datos están organizados por tipo y, dentro de esta organización, por forma
 Opcional: Instalar moskitt y pgmodeler
 ======================================
 
-En el tema 1 utilizaremos los programas `moskitt <http://www.moskitt.org>`_ y `pgmodeler <http://www.pgmodeler.com.br>`_. Ambos nos ayudaran en la labor de diseño y modelado de bases de datos espaciales. Vamos a proceder con su instalación.
+En el tema 1 se tratarán conceptos de diseño de bases de datos. `Moskitt <http://www.moskitt.org>`_ y `pgmodeler <http://www.pgmodeler.com.br>`_ son dos herramientas que se pueden utilizar para modelar bases de datos relacionales con |PGSQL|. Es por eso que, a pesar de no formar parte del presente curso, incluímos a continuación una pequeña guía de instalación. 
 
 Instalar moskitt
 ----------------

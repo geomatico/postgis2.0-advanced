@@ -1,4 +1,4 @@
-.. |PGSQL| replace:: PostgreSQL
+. |PGSQL| replace:: PostgreSQL
 .. |PGIS| replace:: PostGIS
 .. |PRAS| replace:: PostGIS Raster
 .. |GDAL| replace:: GDAL/OGR
@@ -46,6 +46,8 @@ Por último, mencionar que |PGSQL| permite *desheredar* una tabla, y volver a de
 El mecanismo de poder añadir y quitar la herencia implica que, realmente, una tabla puede *adoptar* como hija a cualquier otra en cualquier momento. 
 
 .. note:: Es interesante conocer el concepto de *constraint exclusion*. Una opción de configuración de |PGSQL| que suele usarse junto con la herencia. Mediante esta opción, le decimos a |PGSQL| si queremos que compruebe si es posible evitar alguna de las tablas presentes en una consulta que implique herencia o union. El parámetro puede tener 3 posibles valores: *On*, *Off* y *Partition* (éste último introducido en |PGSQL| 8.4). Un valor de *on* hace que |PGSQL| verifique siempre si se puede evitar alguna tabla en una consulta, incluso aunque no implique herencia o union. *off* elimina la comprobación. En cuanto a *Partition*, hace la comprobación solo si la consulta implica herencia o union. 
+
+La documentación en línea de |PGSQL| 9 `incluye un buen tutorial sobre herencia <http://www.postgresql.org/docs/9.1/static/tutorial-inheritance.html>`_ 
 
 
 Veamos un ejemplo de herencia de tablas, extraído del libro *PostGIS in Action*. El ejemplo pretende modelar una ciudad como París, usando para ello la herencia de tablas. Nosotros cambiaremos la ciudad por Sevilla. El diseño está pensado para almacenar los datos presentes en |OSM| simplificados, y permitir cruzar datos con nuestras propias tablas.
@@ -172,6 +174,9 @@ La caja (box) es el rectángulo definido por las máximas y mínimas coordenadas
 
 En la figura se puede observar que solo la linea intersecta a la estrella amarilla, mientras que si utilizamos los índices comprobaremos que la caja amarilla es intersectada por dos figuras la caja roja y la azul. El camino eficiente para responder correctamente a la pregunta **¿qué elemento intersecta la estrella amarilla?** es primero responder a la pregunta **¿qué cajas intersectan la caja amarilla?** usando el índice (consulta rápida) y luego calcular exactamente **¿quien intersecta a la estrella amarilla?** sobre el resultado de la consulta de las cajas.
 
+De todas formas, *no en todas las situaciones tiene sentido usar un índice*. Por ejemplo, si esperamos que nuestra consulta devuelva todos los registros de una tabla, es más lento ir primero al índice que obtener los registros directamente.
+
+
 Creación de indices espaciales
 ------------------------------
 
@@ -200,6 +205,8 @@ Hacer un ``VACUUM`` es crítico para la eficiencia de la base de datos. |PGSQL| 
 	VACUUM ANALYZE [Nombre_tabla] ([Nombre_columna])
 	
 Esta orden actualiza las estadísticas y elimina los datos borrados que se encontraban marcados como eliminados.
+
+Es importante ejecutar con cierta frecuencia estas instrucciones. Por ejemplo, en el apartado anterior hemos destacado que, si una consulta va a obtener todos los registros de una tabla, o la mayor parte, no sería buena idea realizar la búsqueda en un índice. Para que el planificador pueda decidir si una consulta va a requerir leer una gran porción de la tabla o no, las estadísticas deben estar actualizadas.
 
 
 Rules y Triggers
@@ -280,6 +287,40 @@ Rellenar la tabla *sevilla_osm_lines* creada en el apartado de herencia con solo
 
 .. note:: Para rellenar los campos *feature_name* y *feature_type*, se pueden usar, respectivamente, *tags->'name' y *COALESCE(tags->'tourism', tags->'railway', 'other')::varchar(50) As feature_type*, respectivamente
 
+**Respuesta**::
+	
+Vamos a aplicar herencia::
+
+	-- Clase padre (creamos clave primaria aunque no vayamos a  guardar nada, porque es una buena práctica y porque algunos programas de terceros lo van a requerir)
+	
+	CREATE TABLE sevilla_osm(gid SERIAL PRIMARY KEY, osm_id integer, cod_post character varying(5), 
+	feature_name varchar(200), feature_type varchar(50), geom geometry);
+
+	ALTER TABLE sevilla_osm
+	ADD CONSTRAINT enforce_dims_geom CHECK (st_ndims(geom) = 2);
+	ALTER TABLE sevilla_osm
+	ADD CONSTRAINT enforce_srid_geom CHECK (st_srid(geom) = 4326);
+
+
+	-- Clase hija
+
+	CREATE TABLE sevilla_osm_lines(tags hstore,
+	CONSTRAINT sevilla_osm_lines_pk PRIMARY KEY (gid)) INHERITS (sevilla_osm);
+
+	-- Quitamos la herencia para poder rellenar la tabla sin que nos interrumpan
+	ALTER TABLE sevilla_osm_lines NO INHERIT sevilla_osm;
+
+	-- Rellenamos con SOLO los Linestring. Coalesce devuelve el primero de los argumentos que no es nulo
+	
+	INSERT INTO sevilla_osm_lines(osm_id, cod_post, geom, tags, feature_name, feature_type)
+	SELECT osm_id, cod_post, geom, tags, tags->'name',
+		COALESCE(tags->'tourism', tags->'railway', 'other')::varchar(50) As feature_type
+	FROM sevilla_all_osm_geometries
+	WHERE ST_GeometryType(geom) LIKE '%LineString';
+
+	-- Volvemos a activar la herencia
+	ALTER TABLE sevilla_osm_lines INHERIT sevilla_osm;
+
 
 Ejercicio 2
 -----------
@@ -299,6 +340,42 @@ Completar el código del presente trigger para poder actualizar la columna geom�
 		RETURN NEW;
 	END;
 
+
+**Respuesta**:
+
+
+Codigo del trigger::
+
+	CREATE OR REPLACE FUNCTION lonlat_test_pop_geom() 
+	RETURNS TRIGGER AS $popgeom$
+
+	BEGIN
+ 	IF(TG_OP='INSERT') THEN
+
+ 		UPDATE lonlat_test
+   			SET geom = ST_SetSRID(ST_MakePoint(x,y), 4326)
+     		WHERE geom IS NULL;
+	
+ 	ELSIF(TG_OP='UPDATE') THEN
+  		UPDATE lonlat_test
+   		SET geom = ST_SetSRID(ST_MakePoint(x,y), 4326); 
+
+ 	END IF;
+ 	
+	RETURN NEW;
+	END;
+
 	$popgeom$ LANGUAGE plpgsql;
 
+Definir el trigger::
+
+	CREATE TRIGGER popgeom_insert
+ 	AFTER INSERT ON lonlat_test
+ 	FOR EACH ROW
+ 	EXECUTE PROCEDURE lonlat_test_pop_geom();
+
+	CREATE TRIGGER popgeom_update
+ 	AFTER UPDATE ON lonlat_test
+	FOR EACH ROW
+ 	EXECUTE PROCEDURE lonlat_test_pop_geom();
 
