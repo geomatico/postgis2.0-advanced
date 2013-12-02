@@ -468,12 +468,74 @@ pgRouting nos permite tener en cuenta todos estos problemas
 
 ¿Restricciones en los giros?
 
-	Hasta la versión 2.0 de pgRouting, el algoritmo que tenía en cuenta esto, a través de una talba auxiliar, era el algortimo *shooting star*. Desde la versión 2.0, se usa el algoritmo *TRSP (Turn Restriction Shortest Path)*, a través de la función ``pgr_trsp``.
+	Hasta la versión 2.0 de pgRouting, el algoritmo que tenía en cuenta esto, a través de una tabla auxiliar, era el algortimo *shooting star*. Desde la versión 2.0, se usa el algoritmo *TRSP (Turn Restriction Shortest Path)*, a través de la función ``pgr_trsp``.
+
+En el algoritmo TRSP se especifican las restricciones en giros a través de una consulta SQL que restringe los caminos a tomar. Dicha consulta SQL debe devolver un resultado con varias filas que tengan el siguiente formato::
+	
+	SELECT to_cost, target_id, via_path FROM restrictions
+
+Cada fila del resultado significa: "Si vienes a través del camino indicado por *via* (una lista de ids de aristas separada por comas), solo puedes pasar por la arista *target_id* pagando el coste *to_cost*".
+
+Esta lógica se puede usar para implementar restricciones en los giros. Veamos un par de ejemplos, usando la red topológica construída con `estos datos <http://docs.pgrouting.org/2.0/en/doc/src/developer/sampledata.html#sampledata>`_.
 
 
+Crearemos una tabla auxiliar para almacenar las restricciones en los giros::
+	
+	CREATE TABLE restrictions (
+    	rid serial,
+    	to_cost double precision,
+    	target_id integer,
+    	via_path text
+	);
+
+	INSERT INTO restrictions VALUES (1, 1000, 11, '8,4,1');
+
+La restricción de giro significa: "Si vienes a través de las aristas 1, 4, 8, solo puedes pasar a través de la arista 11 pagando un costo de 1000".
+
+Veamos ahora cómo sería el camino mínimo sin restricciones de giro, usando trsp. Queremos ir del nodo 1 al 11::
+	
+	SELECT seq, id1 AS node, id2 AS edge, cost
+        FROM pgr_trsp(
+                'SELECT id, source, target, cost FROM edge_table',
+                1, 11, false, false
+        );
+
+El resultado es::
+
+	 seq | node | edge | cost
+	-----+------+------+------
+	   0 |    1 |    1 |    1
+	   1 |    2 |    4 |    1
+       2 |    5 |    8 |    1
+       3 |    6 |   11 |    1
+       4 |   11 |   -1 |    0
+
+Es decir, que el camino encontrado es 1 - 2 - 5 - 6 - 11. 
+
+Veamos lo que sucede si aplicamos la restricción de giro que impedirá ir del nodo 6 al 11 sin pagar un coste de 1000::
+	
+	SELECT seq, id1 AS node, id2 AS edge, cost
+        FROM pgr_trsp(
+                'SELECT id, source, target, cost FROM edge_table',
+                1, 11, false, false,
+                'SELECT to_cost, target_id, via_path FROM restrictions'
+        );
+
+
+El resultado es::
+	
+	 seq | node | edge | cost
+	-----+------+------+------
+	   0 |    1 |    1 |    1
+	   1 |    2 |    4 |    1
+	   2 |    5 |   10 |    1
+	   3 |   10 |   12 |    1
+	   4 |   11 |   -1 |    0
+
+Como se puede apreciar, el camino elegido ha sido 1 - 2 - 5 - 10 - 11. El algoritmo ha preferido ir del nodo 5 al 10, en previsión del sobrecoste que le iba a suponer el otro camino.
  
 
-.. seealso:: La función pgr_trsp se puede consultar `aquí <http://docs.pgrouting.org/dev/src/trsp/doc/index.html>`_. Y las razones para abandonar *shooting_star*, `aquí <http://docs.pgrouting.org/dev/doc/src/developer/discontinued.html#shooting-star>`_
+.. seealso:: La función pgr_trsp se puede consultar `aquí <http://docs.pgrouting.org/dev/src/trsp/doc/index.html>`_. Y las razones para abandonar *shooting_star*, `aquí <http://docs.pgrouting.org/dev/doc/src/developer/discontinued.html#shooting-star>`_. Pero el ejemplo de consulta no es muy afortunado.
 
 
 .. note:: Las imágenes de este apartado se han obtenido de http://www.slideshare.net/kastl/foss4-g2011-pgrouting
