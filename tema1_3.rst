@@ -43,6 +43,31 @@ Podemos ver una explicación detallada de las opciones disponibles en la `docume
 Una vez generado el fichero SQL, puede ser cargado en |PGSQL| mediante la herramienta ``psql`` de línea de comandos o a través de `pgAdmin III <http://www.pgadmin.org/>`_, una herramienta gráfica de administración y desarrollo para Windows, Mac y |LX| 
 
 A continuación, veremos un ejemplo de las opciones más típicas usadas a la hora de generar un fichero SQL a partir de un fichero |SHP| con ``shp2pgsql``::
+Cliente de geocoding con geopy
+------------------------------
+
+En este apartado vamos a usar `geopy <https://code.google.com/p/geopy/>`_, una herramienta para geocoding con Python. La función a codificar es ésta::
+	
+	CREATE OR REPLACE FUNCTION Geocode(address text)
+        RETURNS geometry(Point,4326)
+    AS $$
+        from sys import path
+        path.append('/home/user/.virtualenvs/workshop/lib/python2.7/site-packages')
+        from geopy import geocoders
+        g = geocoders.GoogleV3()
+        place, (lat, lng) = g.geocode(address)
+        plpy.info('Geocoded %s for the address: %s' % (place, address))
+        plpy.info('Longitude is %s, Latitude is %s.' % (lng, lat))
+        plpy.info("SELECT ST_GeomFromText('POINT(%s %s)', 4326)" % (lng, lat))
+        result = plpy.execute("SELECT ST_GeomFromText('POINT(%s %s)', 4326) AS point_geocoded" % (lng, lat))
+        geometry = result[0]["point_geocoded"]
+        return geometry
+    $$ LANGUAGE plpythonu;
+
+
+Podemos llamarla mediante::
+
+	SELECT ST_AsText(Geocode('Seville, Spain')) as Sevilla
 
     $ shp2pgsql -s 4258:25830 -I -W LATIN1 mi_fichero.shp > mifichero.sql
     
@@ -124,10 +149,42 @@ Con la orden anterior, crearíamos un fichero de nombre ``mifichero.shp`` a part
 
 
 
-.. note:: No existe actualmente una herramienta equivalente a ``pgsql2shp``, para exportar datos raster desde la base de datos |PGSQL| (su nombre hipotético sería ``pgsql2raster``). Para exportar datos raster, se usa la librería |GDAL|, como veremos en el siguiente apartado
+.. note:: No existe actualmente una herramienta equivalente a ``pgsql2shp``, para exportar datos raster desde la base de datos |PGSQL| (su nombre hipotético sería ``pgsql2raster``). 
 
-.. seealso:: Hay más maneras de exportar datos raster desde |PGSQL| sin necesidad de usar GDAL. En la `documentación online de PostGIS Raster <http://postgis.net/docs/manual-2.0/using_raster.xml.html#RT_Raster_Applications>`_ se mencionan algunos. 
 
+
+Exportación de datos raster
+---------------------------
+
+El siguiente método de exportar datos SQL está extraído de la `documentación oficial de |PRAS| <http://postgis.net/docs/manual-2.0/using_raster.xml.html#RasterOutput_PSQL>`_. 
+
+En primer lugar, debermos acceder mediante psql a nuestra base de datos (no usar desde el cliente pgAdmin o cualquier otro cliente gráfico)::
+
+	$ psql -d workshop_sevilla
+
+Después, ejecutamos esta consulta::
+	
+	SELECT oid, lowrite(lo_open(oid, 131072), png) As num_bytes
+ 	FROM 
+ 	( VALUES (lo_create(0), 
+   	ST_AsPNG( (SELECT rast FROM pnoa_sevilla WHERE rid=1) ) 
+  	) ) As v(oid,png);
+
+Devolverá un resultado con dos campos. Uno de esos campos será el oid. Lo usaremos en la siguiente orden::
+	
+	\lo_export <oid> '/home/user/Desktop/pnoa_sevilla_rid1.png'
+
+Donde *<oid>* es el oid obtenido en la consulta anterior. 
+
+Mediante esa orden, se exportará al escritorio del usuario un fichero PNG que representa la tesela con rid = 1 de la tabla *pnoa_sevilla*.
+
+Lo último será borrar el fichero del almacenamiento interno de la base de datos::
+
+	select lo_unlink(<oid>)
+
+
+
+.. seealso:: Para más información sobre cómo exportar datos raster desde |PGSQL| sin necesidad de usar |GDAL|, visitar la `documentación online de PostGIS Raster <http://postgis.net/docs/manual-2.0/using_raster.xml.html#RT_Raster_Applications>`_. 
 
 
 Herramientas |GDAL|

@@ -18,8 +18,6 @@ Contents:
    tema2
    tema3
    tema4
-   tema5
-   tema6
    bibliografia
 
 Indices and tables
