@@ -13,6 +13,7 @@
 
 .. note:: Los materiales teóricos de este capítulo están basados en parte en el `Taller de Routing impartido por María Arias de Reyna <http://delawen.github.io/Taller-Routing>`_ en las Jornadas de SIG Libre de Girona. En cuanto a los materiales prácticos, parte han sido adaptados del libro `PostGIS CookBook <http://www.packtpub.com/postgis-to-store-organize-manipulate-analyze-spatial-data-cookbook/book>`_. En dicho libro se encuentran las soluciones a los ejercicios originales, así como otros ejercicios más complejos propuestos y resueltos. Recomendamos el uso de este libro como referencia para el aprendizaje de técnicas avanzadas con |PGIS|. Otra parte ha sido extraída del `Workshop de pgRouting impartido en FOSS4G2013 <http://workshop.pgrouting.org/>`_ 
 
+gdal_translate PG:"dbname=workshop_sevilla host=127.0.0.1 user=user password=user port=5432 table=raster_slope mode=2" raster_slope.tif
 
 
 Cálculo de rutas con pgRouting
@@ -1040,8 +1041,6 @@ Con eso insalaríamos el motor de cálculo de rutas. Si queremos una interfaz we
 	$ git clone git://github.com/DennisOSRM/Project-OSRM-Web.git
 
 
-
-
 Ejercicios
 ==========
 
@@ -1072,10 +1071,36 @@ La siguiente captura está hecha con QGIS, etiquetando los vértices (tabla *ver
 Calcular el camino más corto del nodo 4 al nodo 1, asumiendo que el grafo es no dirigido. Transformar el resultado en geometrías de tipo LineString, y crear con ellas una tabla para poder visualizarla en PostGIS.
 
 
+**Respuesta**::
+
+	with dijkstra as (
+		SELECT pgr_dijkstra(
+                'SELECT id, source, target, cost, x1, y1, x2, y2, reverse_cost FROM edge_table',
+                4, 1, false, false
+		)
+	) SELECT id, ST_AsText(the_geom)
+		FROM edge_table et, dijkstra d
+		WHERE et.id = (d.pgr_dijkstra).id2;
+
+
+
 Ejercicio 2
 -----------
 
 Repetir el ejercicio 1 con el algoritmo A*. Asegurarse de que la tabla de aristas cumple las condiciones necesarias para poder ejecutar el algoritmo.
+
+
+**Respuesta**::
+	
+	with astar as (
+		SELECT pgr_astar(
+                'SELECT id, source, target, cost, x1, y1, x2, y2, reverse_cost FROM edge_table',
+                4, 1, false, false
+		)
+	) SELECT id, ST_AsText(the_geom)
+		FROM edge_table et, astar d
+		WHERE et.id = (d.pgr_astar).id2;
+
 
 
 Ejercicio 3
@@ -1083,12 +1108,42 @@ Ejercicio 3
 
 Repetir las dos búsquedas anteriores, pero asumiendo que el grafo es dirigido. Comparar los resultados.
 
+**Respuesta**::
+	
+	with dijkstra as (
+		SELECT pgr_dijkstra(
+                'SELECT id, source, target, cost, x1, y1, x2, y2, reverse_cost FROM edge_table',
+                7, 12, true, true
+		)
+	) SELECT id, ST_AsText(the_geom)
+		FROM edge_table et, dijkstra d
+		WHERE et.id = (d.pgr_dijkstra).id2;
+
+
+	with astar as (
+		SELECT pgr_astar(
+                'SELECT id, source, target, cost, x1, y1, x2, y2, reverse_cost FROM edge_table',
+                7, 12, true, true
+		)
+	) SELECT id, ST_AsText(the_geom)
+		FROM edge_table et, astar d
+		WHERE et.id = (d.pgr_astar).id2;
+
 
 Ejercicio 4
 -----------
 
-Usando los datos de |OSM|, realizar cálculos con Dijkstra, A*, Driving Distance y TRSP
+Calcular los nodos a una distancia de 1.5 del nodo 7, usando ``pgr_drivingDistance``
 
 .. note:: ¿Qué es driving distance? Revisar `http://docs.pgrouting.org/dev/src/driving_distance/doc/index.html`_
+
+**Respuesta**::
+
+	SELECT seq, id1 AS node, cost
+        FROM pgr_drivingDistance(
+                'SELECT id, source, target, cost FROM edge_table',
+                7, 1.5, false, false
+        )
+
 
 

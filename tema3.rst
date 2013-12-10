@@ -318,12 +318,58 @@ Comprobar los valores de la nueva banda añadida en la capa raster *tmean11_spai
 	* Valor máximo de los valores de los píxeles de la banda
 
 
+**Respuesta**::
+
+	WITH stats AS (
+        SELECT
+                1 AS bandnum,
+                (ST_SummaryStats(rast, 1)).*
+        FROM tmean11_spain
+        WHERE rid = 8
+        UNION ALL
+        SELECT
+                2 AS bandnum,
+                (ST_SummaryStats(rast, 2)).*
+        FROM tmean11_spain
+        WHERE rid = 8
+	)
+
+	SELECT
+        bandnum,
+        count,
+        round(sum::numeric, 2) AS sum,
+        round(mean::numeric, 2) AS mean,
+        round(stddev::numeric, 2) AS stddev,
+        round(min::numeric, 2) AS min,
+        round(max::numeric, 2) AS max
+	FROM stats
+	ORDER BY bandnum;
+
+
+
 Ejercicio 2
 -----------
 
 ¿Cuál ha sido la temperatura media del mes de Noviembre en los municipios de Sevilla?
 
 .. note:: Pistas: usar la tabla *codigo_postal* (vectorial) y la tabla *tmean11_sevilla* (raster). Recordad que la tabla vectorial tiene un srid diferente al de la tabla raster. Transformar el srid de la tabla vectorial al de la tabla de tipo raster.
+
+**Respuesta**::
+	
+	WITH stats AS (
+        SELECT rast, (ST_SummaryStats(rast, 2)).*
+        FROM tmean11_spain
+	)
+
+	SELECT
+        b.nombre_municipio,
+        ROUND(AVG(s.mean::numeric), 2) AS tmean,
+        ROUND(AVG(s.min::numeric), 2) as tmin,
+        ROUND(AVG(s.max::numeric), 2) as tmax
+	FROM stats s JOIN codigo_postal b ON ST_Intersects(s.rast, st_transform(b.geom, 4326))
+	GROUP BY b.nombre_municipio
+	ORDER BY b.nombre_municipio
+
 
 
 Ejercicio 3
@@ -339,6 +385,19 @@ Crear una nueva capa |PRAS| resultante de recortar la capa raster *pnoa_sevilla*
 
 Exportar la capa resultante como fichero TIFF usando ``gdal_translate``
 
+**Respuesta**::
+	
+	with clip_polygon as (
+		select geom from codigo_postal where nombre_municipio = 'Salteras' and gid = 120
+	)
+	SELECT
+        m.rid, st_transform(st_clip(m.rast, c.geom), 25830) as rast
+	FROM pnoa_sevilla m, clip_polygon c
+	where st_intersects(m.rast, c.geom))
+
+	gdal_translate PG:"dbname=workshop host=127.0.0.1 user=user password=user port=5432 table=pnoa_sevilla_clip mode=2" pnoa_sevilla_clip.tif
+
+
 
 Ejercicio 4
 -----------
@@ -352,6 +411,21 @@ A partir de la capa creada en el ejercicio anterior, generar una nueva capa con 
 			(ST_Metadata(rast)).*
         FROM pnoa_sevilla_clip
 	)
+
+**Respuesta**::
+	
+	WITH meta AS (
+        SELECT
+                (ST_Metadata(rast)).*
+        FROM pnoa_sevilla_clip
+	)
+	SELECT
+        ST_Rescale(pnoa_sevilla_clip.rast, meta.scalex * 4., meta.scaley * 4., 'cubic') AS rast
+	FROM pnoa_sevilla_clip
+	CROSS JOIN meta)
+
+
+	gdal_translate PG:"dbname=workshop host=127.0.0.1 user=user password=user port=5432 table=pnoa_sevilla_clip_scaled mode=2" pnoa_sevilla_clip_scaled.tif
 
 
 Ejercicio 5
@@ -382,6 +456,30 @@ Que devuelve 40 resultados.
 
 Cambiar la consulta para que utilice la función `ST_PixelAsPolygons <http://postgis.net/docs/manual-2.0/RT_ST_PixelAsPolygons.html>`_ . Comparar el número de resultados y cargar ambas capas en QGIS para comprobar las diferencias.
 
+**Respuesta**::
+	
+	(WITH geoms AS (
+        SELECT
+                ST_PixelAsPolygons(
+                        ST_Union(
+                                ST_Clip(t.rast, 2, ST_Transform(cp.geom, 4326), TRUE)
+                        ),
+                        1
+                ) AS gv
+        FROM tmean11_spain t
+        JOIN codigo_postal cp
+                ON ST_Intersects(t.rast, ST_Transform(cp.geom, 4326))
+        WHERE t.rid = 944
+	)
+	SELECT
+        (gv).val,
+        (gv).geom AS geom
+	FROM geoms)
+
+Salen 216 resultados en lugar de 40. La diferencia es que ``ST_DumpAsPolygons`` solo vuelca píxeles con valor diferente a NODATA, y además une los píxeles que tienen el mismo valor en un solo polígono. ``ST_PixelAsPolygon`` vuelca todos los píxeles y no une nada.
+
+
+
 
 Ejercicio 6
 -----------
@@ -393,6 +491,24 @@ Mediante el uso de la función `ST_AsRaster <http://postgis.net/docs/manual-2.0/
 	* Color de pixel definido por RGBA a elección del alumno, con el formato (r, g, b, a)
 
 Exportar la capa resultante como fichero TIFF usando ``gdal_translate``
+
+
+**Respuesta**::
+	
+	SELECT
+        ST_AsRaster(
+                cp.geom,
+                100., -100.,
+                ARRAY['8BUI', '8BUI', '8BUI', '8BUI']::text[],
+                ARRAY[29, 194, 178, 255]::double precision[],
+                ARRAY[0, 0, 0, 0]::double precision[]
+        ) as rast
+	FROM codigo_postal cp)
+
+
+	gdal_translate PG:"dbname=workshop host=127.0.0.1 user=user password=user port=5432table=codigo_postal_raster mode=2" codigo_postal_raster.tif
+
+
 
 
 Ejercicio 7
@@ -427,8 +543,19 @@ Usando el anterior raster, crear otro raster que almacene la pendiente de la sup
 .. seealso:: Para saber más sobre el concepto de *slope*: `<http://webhelp.esri.com/arcgisdesktop/9.3/index.cfm?TopicName=Calculating%20slope>`_ 
 
 
+**Respuesta**::
+	
+	WITH r AS ( -- union of filtered tiles
+        SELECT
+                ST_Transform(ST_Union(t.rast), 25830) AS rast
+        FROM amean_spain t
+        JOIN codigo_postal cp
+                ON ST_DWithin(ST_Transform(t.rast::geometry, 25830), cp.geom, 1000)
+	)
+	SELECT
+        ST_Clip(ST_Slope(r.rast, 1, '32BF'), cp.geom) AS rast
+	FROM r
+	CROSS JOIN codigo_postal cp)
 
-
-
-
+	gdal_translate PG:"dbname=workshop host=127.0.0.1 user=user password=user port=5432 table=raster_slope mode=2" raster_slope.tif
 

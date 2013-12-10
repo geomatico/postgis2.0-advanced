@@ -311,6 +311,9 @@ El resultado es ::
 
 
 JOIN y funciones agregadas
+select st_distance(geography(o.the_geom), geography(d.the_geom))/1000 as distance
+from ne_10m_populated_places o, ne_10m_populated_places d 
+where o.name = 'Seville' and d.name = 'Los Angeles' and d.sov_a3 = 'USA'
 ==========================
 
 El uso de las funciones espaciales de PostGIS en unión con las funciones de agregación de |PGSQL| nos da la posibilidad de realizar análisis espaciales de datos agregados. Una característica muy potente y con diversas utilidades. Veamos unos ejemplos.
@@ -528,6 +531,13 @@ Ejercicio 1: Join espacial para mezclar los campos de dos tablas
 
 Añadir a la tabla ``toponimo`` un campo adicional que contenga el código postal, obtenido de la tabla ``codigo_postal``. Evitar el uso de consultas anidadas mediante la clausula ``WITH``.
 
+**Respuesta**::
+	
+	ALTER TABLE toponimo ADD COLUMN cod_post character varying(5);
+	
+	with matches as (
+	select t.ogc_fid, cp.cod_postal from toponimo t, codigo_postal cp where st_intersects(t.wkb_geometry, cp.geom))
+	update toponimo set cod_post = matches.cod_postal from matches where toponimo.ogc_fid = matches.ogc_fid
 
 
 Ejercicio 2: Añadir otro campo más
@@ -539,6 +549,13 @@ Añadir a la tabla ``codigo_postal`` un campo adicional que contenga el nombre d
 	from centroides_territorios_etrs89 c, codigo_postal cp 
 	where st_contains(cp.geom, c.wkb_geometry)
 
+**Respuesta**::
+	
+	ALTER TABLE codigo_postal ADD COLUMN nombre_municipio character varying(254);
+	with matches as(
+	select cp.gid, c.nombre from centroides_sevilla c, codigo_postal cp where st_intersects(cp.geom, c.wkb_geometry))
+	update codigo_postal set nombre_municipio = matches.nombre from matches where codigo_postal.gid = matches.gid
+
 
 Ejercicio 3: Distancias
 -----------------------
@@ -546,6 +563,26 @@ Ejercicio 3: Distancias
 Investigar porqué el cálculo de la distancia entre Sevilla y Los Ángeles es erróneo, y modificar la consulta para que devuelva el valor correcto.
 
 .. note:: Pista: Recordar el apartado de sistemas de referencia. ¿Qué problema presenta el sistema de referencia en la que se encuentran los datos (4326)?
+
+
+**Respuesta**:
+
+El problema es que no se puede usar un sistema de coordenadas proyectadas para obtener distancias sobre una esfera. Es necesario
+tener en cuenta la curvatura terrestre. Para eso, podemos usar el tipo *geography*. Al llamar a ``st_distance`` sobre datos de tipo geography, se usa la esfera para hacer cálculos, y se devuelve el resultado en metros. 
+
+La consulta correcta sería::
+	
+	select st_distance(geography(o.the_geom), geography(d.the_geom))/1000 as distance
+	from ne_10m_populated_places o, ne_10m_populated_places d 
+	where o.name = 'Seville' and d.name = 'Los Angeles' and d.sov_a3 = 'USA'
+
+Observemos la diferencia entre ambas::
+	
+	select st_distance(st_transform(o.the_geom, 900913), st_transform(d.the_geom, 900913))/1000 as distancia_plana,
+	st_distance(geography(o.the_geom), geography(d.the_geom))/1000 as distancia_esfera
+	from ne_10m_populated_places o, ne_10m_populated_places d 
+	where o.name = 'Seville' and d.name = 'Los Angeles' and d.sov_a3 = 'USA'
+
 
 
 Ejercicio 4: Mejora del cálculo de distancias
@@ -574,6 +611,19 @@ Investigar qué operadores proporciona |PGIS| para mejorar este caso de uso (bú
 
 .. note:: Hay una buena introducción al problema en `este enlace <http://boundlessgeo.com/2011/09/indexed-nearest-neighbour-search-in-postgis/>`_
 
+**Respuesta**:
+
+Podemos usar el nuevo operador *<->* de |PGIS|::
+	
+	with searchpoint as (
+		select wkb_geometry from toponimo where ogc_fid = 373
+	) select st_distance(searchpoint.wkb_geometry, toponimo.wkb_geometry) as distance
+	from searchpoint, toponimo ORDER BY searchpoint.wkb_geometry <-> toponimo.wkb_geometry LIMIT 10;
+
+Dicho operador usa el índice, y no es necesario conocer un tamaño de ventana a priori. 
+
+Tengamos en cuenta  que *<->* calcula las distancias entre los centros de los bounding boxes que hay en el índice y el punto origen a partir del cuál queremos obtener los vecinos más próximos. Si todo lo que tenemos en nuestra tabla son puntos, no hay problema, porque el bounding box de un punto es el punto mismo. Pero para objetos más complejos, eso no es así. Si queremos más precisión, debemos hacer lo que dice aquí: http://workshops.boundlessgeo.com/postgis-intro/knn.html
+
 
 Ejercicio 5: Simplificación de geometrías
 -----------------------------------------
@@ -581,11 +631,30 @@ Ejercicio 5: Simplificación de geometrías
 Mediante el uso de ``ST_Union`` y agregación, crear una versión simplificada de la tabla ``barrios_de_bogota``
 
 
+**Respuesta**::
+	
+	CREATE TABLE bogota AS
+	SELECT ST_Union(ST_SnapToGrid(geom,0.0001))
+	FROM barrios_de_bogota
+	GROUP BY city;
+
+
+
 Ejercicio 6: Arreglando geometrías
 ----------------------------------
 
 Comprobar si la tabla ``TM_WORLD_BORDERS`` contiene geometrías inválidas. Si es así, arreglarlas mediante el uso de `ST_MakeValid <http://postgis.net/docs/manual-2.0/ST_MakeValid.html>`_ 
 
+
+**Respuesta**:
+	
+Para comprobar que dicha tabla contiene geometrías inválidas ejecutamos::
+
+	SELECT gid, name, ST_IsValidReason(geom) FROM tm_world_borders WHERE ST_IsValid(geom)=false;
+
+Y para arreglarlas::
+	
+	update tm_world_borders set geom = ST_MakeValid(geom) where ST_IsValid(geom)=false;
 
 Ejercicio 7: Trabajando con trazas GPS
 ---------------------------------------
@@ -610,6 +679,16 @@ Utilizando la tabla de puntos con las trazas GPS cargadas en el primer tema, vam
 	CREATE INDEX lim_adm_esp_idx ON lim_adm_esp USING gist(geom);
 
 Calcular la longitud total recorrida a partir de la tabla anterior.
+
+**Respuesta**::
+	
+	SELECT
+    	EXTRACT(year FROM trip_date) AS trip_year,
+    	EXTRACT(MONTH FROM trip_date) as trip_month,
+    	SUM(ST_Length(the_geom))/1000 AS distance
+	FROM line_tracks
+	GROUP BY trip_year, trip_month;
+
 
  
 
