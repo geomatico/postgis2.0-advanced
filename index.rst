@@ -19,6 +19,8 @@ Contents:
    tema3
    tema4
    tema5
+   tema6
+   tema7
    tema8
    bibliografia
 
